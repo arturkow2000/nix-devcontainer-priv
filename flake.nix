@@ -49,11 +49,11 @@
           pkgs = inputs'.nixpkgs.legacyPackages.extend self.overlays.nix-devcontainer;
         in
         {
-          devShells.default = pkgs.mkShellNoCC {
+          devShells.simple = pkgs.mkShellNoCC {
             packages = devPackages;
           };
-          packages.container = pkgs.mkDevcontainer {
-            name = "lotdafak";
+          packages.container-simple = pkgs.mkDevcontainer {
+            name = "nix-devcontainer-simple";
           };
         };
     };

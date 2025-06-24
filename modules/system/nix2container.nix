@@ -10,44 +10,58 @@
 let
   inherit (flake.inputs.nix2container.packages.${flakeArchBuild}) nix2container;
   flakeArchBuild = parsedArchToFlake pkgs.stdenv.buildPlatform.parsed;
-  baseOsLayer = nix2container.buildLayer {
-    deps = config.build.requiredPackages ++ config.environment.defaultPackages;
-    metadata.created_by = "nix2container base layer";
-  };
   getAllDeps =
     packages:
     let
       raw = pkgs.writeClosure packages;
     in
     lib.filter (x: (lib.stringLength x) > 0) (lib.splitString "\n" (builtins.readFile raw));
-  allDepsInLayers = getAllDeps (
-    lib.flatten (
-      lib.catAttrs "deps" (
-        config.system.build.layers
-        ++ [
-          catchallLayer
-          toplevelLayer
-        ]
-      )
-    )
-  );
   allDeps = getAllDeps config.system.build.toplevel;
-  strayDeps = lib.subtractLists allDepsInLayers allDeps;
+  ownedDeps = getAllDeps config.system.build.layers ++ toplevelLayerDeps;
+  strayDeps = lib.subtractLists ownedDeps allDeps;
 
+  # Split the image into layers to avoid having to update full few gigabytes
+  # images on each even smallest change. nix2container provides maxLayers settings
+  # however due to Docker's limitations this may not be efficient. Manually create
+  # base layer for most common packages which are always present, do the same for
+  # the "toplevel" layer which holds configuration. Everything else is subject
+  # to maxLayers setting.
+  baseOsLayer = nix2container.buildLayer {
+    # FIXME: changing defaultPackages triggers rebuild of everything. Perhabs
+    # move this into separate layer on top of base OS?
+    deps = config.build.requiredPackages ++ config.environment.defaultPackages;
+    metadata.created_by = "nix2container base layer";
+  };
+
+  # This layer catches any derivations which aren't explicitly assigned to any layer
+  # which would otherwise go into toplevel layer.
   catchallLayer = nix2container.buildLayer {
-    deps = map (x: lib.warn "stray dep: ${builtins.toString x}" x) strayDeps;
+    deps = strayDeps;
     layers = config.system.build.layers;
     metadata.created_by = "nix2container catchall layer";
   };
-  toplevelLayer = nix2container.buildLayer {
-    layers = config.system.build.layers ++ [ catchallLayer ];
-    deps = [
+
+  # Derivations which always put into toplevel layer.
+  toplevelLayerDeps =
+    let
+      etcFiles = lib.mapAttrsToList (n: v: v.source) config.environment.etc;
+    in
+    [
       config.system.path
       config.system.build.etc
-    ];
+    ]
+    ++ etcFiles;
+  toplevelLayer = nix2container.buildLayer {
+    layers = config.system.build.layers ++ lib.optional (lib.length strayDeps > 0) catchallLayer;
+    deps = toplevelLayerDeps;
     copyToRoot = config.system.build.toplevel;
     metadata.created_by = "nix2container toplevel layer";
   };
+
+  allLayers =
+    config.system.build.layers
+    ++ lib.optional (lib.length strayDeps > 0) catchallLayer
+    ++ [ toplevelLayer ];
 in
 {
   options = {
@@ -80,9 +94,7 @@ in
           "--login"
         ];
       };
-      layers = config.system.build.layers ++ [
-        toplevelLayer
-      ];
+      layers = allLayers;
     };
   };
 }
