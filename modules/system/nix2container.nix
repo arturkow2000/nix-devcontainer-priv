@@ -54,7 +54,33 @@ let
   toplevelLayer = nix2container.buildLayer {
     layers = config.system.build.layers ++ lib.optional (lib.length strayDeps > 0) catchallLayer;
     deps = toplevelLayerDeps;
-    copyToRoot = config.system.build.toplevel;
+    copyToRoot = [
+      config.system.build.toplevel
+      config.system.build.etc
+    ];
+    perms = map (
+      {
+        package,
+        file,
+        mode,
+        uid,
+        gid,
+      }:
+      {
+        path = package;
+        regex = "^${package}${file}$";
+        inherit mode uid gid;
+      }
+    ) config.system.build.perms;
+    # If config file is copied to /etc instead of symlinked remove the copy from /nix/store.
+    # Removes duplicated content and also what's particularly important prevents files from
+    # being world-readable (such as /etc/shadow) if permissions don't allow this - permissions
+    # are applied to files in /etc not to /nix/store!
+    ignore =
+      let
+        etc' = lib.filter (f: f.enable && f.mode != "symlink") (lib.attrValues config.environment.etc);
+      in
+      map (f: f.source) etc';
     metadata.created_by = "nix2container toplevel layer";
   };
 

@@ -20,13 +20,21 @@ let
         # If the source name contains '*', perform globbing.
         mkdir -p "$out/etc/$target"
         for fn in $src; do
+          if [ "$mode" != symlink ]; then
+            cp "$fn" "$out/etc/$target/"
+          else
             ln -s "$fn" "$out/etc/$target/"
+          fi
         done
       else
 
         mkdir -p "$out/etc/$(dirname "$target")"
         if ! [ -e "$out/etc/$target" ]; then
-          ln -s "$src" "$out/etc/$target"
+          if [ "$mode" != symlink ]; then
+            cp "$src" "$out/etc/$target"
+          else
+            ln -s "$src" "$out/etc/$target"
+          fi
         else
           echo "duplicate entry $target -> $src"
           if [ "$(readlink "$out/etc/$target")" != "$src" ]; then
@@ -72,6 +80,31 @@ let
     ) etc'}
 
     echo -n "}" >> "$out/attrs.json"
+  '';
+  etcMerged = pkgs.runCommandNoCCLocal "etc-merged" { } ''
+    copyAll() {
+      while IFS= read -rd "" f; do
+        rel="$(realpath --no-symlinks --relative-to="$1" "$f")"
+        if [[ "$rel" = '.' ]]; then
+          dst="$out$2"
+        else
+          dst="$out$2/$rel"
+        fi
+        if [ -d "$f" ]; then
+          [ -d "$dst" ] || mkdir "$dst"
+        else
+          if [ -e "$dst" ]; then
+            echo "duplicated file $f -> $dst" >&2
+            exit 1
+          fi
+          cp -P "$f" "$dst"
+        fi
+      done
+    }
+
+    mkdir -p $out/etc
+    find "${etc}/etc" -print0 | copyAll "${etc}/etc" /etc
+    find "${config.system.path}/etc" -print0 | copyAll "${config.system.path}/etc" /etc
   '';
 in
 {
@@ -210,7 +243,8 @@ in
   };
 
   config = {
-    system.build.etc = etc;
+    system.build.etc = etcMerged;
+    # FIXME: use generated attrs.json, required to correctly handle globbing.
     system.build.perms =
       let
         toId =
@@ -220,13 +254,15 @@ in
       lib.foldl' (
         acc: entry:
         acc
-        // {
-          "/etc/${entry.target}" = {
+        ++ [
+          {
             inherit (entry) mode;
+            package = config.system.build.etc;
+            file = "/etc/${entry.target}";
             uid = toId config.users.users "uid" entry.user;
             gid = toId config.users.groups "gid" entry.group;
-          };
-        }
-      ) { } (lib.filter (f: f.mode != "symlink") etc');
+          }
+        ]
+      ) [ ] (lib.filter (f: f.mode != "symlink") etc');
   };
 }

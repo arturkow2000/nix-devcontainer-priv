@@ -5,6 +5,16 @@ let
     { ... }:
     {
       options = {
+        package = lib.mkOption {
+          type = types.package;
+          description = "Package to apply permissions to";
+        };
+
+        file = lib.mkOption {
+          type = types.path;
+          description = "Path to the file, relative to package directory";
+        };
+
         uid = lib.mkOption {
           type = types.int;
           description = "UID of file owner";
@@ -35,7 +45,7 @@ in
 
     system.build = {
       perms = lib.mkOption {
-        type = with types; attrsOf (submodule fsAttrs);
+        type = with types; listOf (submodule fsAttrs);
         default = { };
         description = ''
           A dictionary of files/directories and theirs fs attributes (ownership, permissions)
