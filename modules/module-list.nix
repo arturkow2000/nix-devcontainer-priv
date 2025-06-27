@@ -89,6 +89,6 @@
   "${upstreamModulePath}/programs/zsh/zsh-autoenv.nix"
   "${upstreamModulePath}/programs/zsh/zsh-autosuggestions.nix"
   "${upstreamModulePath}/programs/zsh/zsh-syntax-highlighting.nix"
-  "${upstreamModulePath}/programs/zsh/zsh.nix"
+  ./programs/zsh/zsh.nix
   "${upstreamModulePath}/security/ca.nix"
 ]
