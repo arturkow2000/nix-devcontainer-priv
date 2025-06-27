@@ -9,24 +9,77 @@ let
   parsedArchToFlake = parsed: "${parsed.cpu.name}-${parsed.kernel.name}";
 
   mkDefaultConfig =
-    { name }:
-    { config, ... }:
     {
+      name,
+      defaultShell,
+      enabledShells,
+      shellTheme,
+    }:
+    { config, pkgs, ... }:
+    {
+      assertions = [
+        {
+          assertion =
+            shellTheme == null
+            || lib.elem shellTheme [
+              "devcontainers"
+              "starship"
+            ];
+          message = "Unsupported shell theme \"${shellTheme}\"";
+        }
+      ];
+
       system.nixos.containerName = name;
       system.stateVersion = lib.mkDefault lib.trivial.release;
       nix.enable = lib.mkDefault false;
+      programs = lib.mkMerge [
+        (lib.foldl' (acc: x: acc // { ${x}.enable = true; }) { } (
+          # bash is always enabled in NixOS
+          lib.filter (x: x != "bash") enabledShells
+        ))
+        {
+          zsh.ohMyZsh = {
+            enable = lib.mkDefault true;
+            theme = lib.mkIf (shellTheme != null && shellTheme != "starship") shellTheme;
+            customPkgs = lib.optional (shellTheme == "devcontainers") (
+              pkgs.callPackage ../packages/zsh-theme-devcontainers.nix { }
+            );
+          };
+        }
+        {
+          bash.promptInit = lib.mkIf (shellTheme == "devcontainers") ''
+            source ${pkgs.callPackage ../packages/bash-theme-devcontainers.nix { }}
+          '';
+        }
+        (lib.mkIf (shellTheme == "starship") {
+          starship.enable = true;
+        })
+      ];
+      users.defaultUserShell = pkgs.${defaultShell};
     };
 
   mkDevcontainer = lib.makeOverridable (
     args:
     {
       name ? "nix-container",
+      defaultShell ? "zsh",
+      enabledShells ? [ defaultShell ],
+      shellTheme ? "devcontainers",
     }:
     let
       system = lib.nixosSystem (
         {
           lib = args.lib or lib;
-          modules = [ (mkDefaultConfig { inherit name; }) ] ++ (args.modules or [ ]);
+          modules = [
+            (mkDefaultConfig {
+              inherit
+                name
+                defaultShell
+                enabledShells
+                shellTheme
+                ;
+            })
+          ] ++ (args.modules or [ ]);
           inherit baseModules;
 
           specialArgs = {
