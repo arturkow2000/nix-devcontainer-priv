@@ -84,7 +84,7 @@ in
       // (lib.foldr (
         x: acc:
         acc
-        / {
+        // {
           "pam.d/${x}".text = ''
             auth include system-auth
             account include system-auth
@@ -99,7 +99,7 @@ in
         setuid = true;
         owner = "root";
         group = "root";
-        source = "${cfg.package}/bin/unix_chkpwd";
+        source = "${config.security.pam.package}/bin/unix_chkpwd";
       };
     };
   };
