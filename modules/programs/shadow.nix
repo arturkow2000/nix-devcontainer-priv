@@ -93,5 +93,14 @@ in
           '';
         }
       ) { } config.security.pam.whitelistedServices);
+
+    security.wrappers = {
+      unix_chkpwd = {
+        setuid = true;
+        owner = "root";
+        group = "root";
+        source = "${cfg.package}/bin/unix_chkpwd";
+      };
+    };
   };
 }
