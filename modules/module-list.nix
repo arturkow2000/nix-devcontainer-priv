@@ -89,4 +89,5 @@
   "${upstreamModulePath}/programs/zsh/zsh-syntax-highlighting.nix"
   "${upstreamModulePath}/programs/zsh/zsh.nix"
   "${upstreamModulePath}/security/ca.nix"
+  ./security/wrappers/default.nix
 ]

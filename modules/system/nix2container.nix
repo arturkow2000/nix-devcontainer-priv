@@ -57,7 +57,7 @@ let
     copyToRoot = [
       config.system.build.toplevel
       config.system.build.etc
-    ];
+    ] ++ lib.optional config.security.enableWrappers config.security.wrapperPackage;
     perms = map (
       {
         package,

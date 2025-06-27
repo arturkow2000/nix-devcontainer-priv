@@ -6,15 +6,25 @@
 }:
 let
   inherit (lib) types;
-  systemBuilder = ''
-    mkdir -p $out/{tmp,opt,var,run}
-    mkdir $out/usr
-    while IFS= read -rd "" f; do
-      ln -s "${config.system.path}/$f" $out/usr/
-    done < <(ls -A --zero "${config.system.path}" | sed --zero '/^etc$/d')
+  systemBuilder =
+    ''
+      mkdir -p $out/{tmp,opt,var}
+    ''
+    # XXX: workaround. When security wrappers are enabled put files in /run/wrappers/bin.
+    # Those files have attached permissions (setuid, setgid, etc.) which we pass to nix2container
+    # through perms attributes, but this causes conflicts in nix2container.
+    # For now just let security wrapper package create /run.
+    + lib.optionalString (!config.security.enableWrappers) ''
+      mkdir -p $out/run
+    ''
+    + ''
+      mkdir $out/usr
+      while IFS= read -rd "" f; do
+        ln -s "${config.system.path}/$f" $out/usr/
+      done < <(ls -A --zero "${config.system.path}" | sed --zero '/^etc$/d')
 
-    ln -s /run $out/var/run
-  '';
+      ln -s /run $out/var/run
+    '';
 
   baseSystem = pkgs.stdenvNoCC.mkDerivation {
     name = "nixos-container";
