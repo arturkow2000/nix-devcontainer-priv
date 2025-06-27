@@ -60,6 +60,8 @@
   ./system/nix.nix
   ./programs/shadow.nix
   ./security/pam.nix
+  ./security/sudo.nix
+  ./security/wrappers/default.nix
   # "${upstreamModulePath}/security/sudo.nix"
   "${upstreamModulePath}/programs/bash-my-aws.nix"
   "${upstreamModulePath}/programs/bash/bash.nix"
@@ -89,6 +91,4 @@
   "${upstreamModulePath}/programs/zsh/zsh-syntax-highlighting.nix"
   "${upstreamModulePath}/programs/zsh/zsh.nix"
   "${upstreamModulePath}/security/ca.nix"
-  ./security/wrappers/default.nix
-  ./security/sudo.nix
 ]
