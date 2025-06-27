@@ -280,11 +280,7 @@ in
     security.wrapperPackage = lib.mkIf config.security.enableWrappers mkWrapperPackage;
     system.build.perms = if config.security.enableWrappers then mkWrapperPerms else [ ];
 
-    # Make sure our wrapperDir exports to the PATH env variable when
-    # initializing the shell
-    # environment.extraInit = ''
-    #   # Wrappers override other bin directories.
-    #   export PATH="${wrapperDir}:$PATH"
-    # '';
+    # Add wrappers to PATH
+    environment.variables.PATH = lib.optional config.security.enableWrappers config.security.wrapperDir;
   };
 }

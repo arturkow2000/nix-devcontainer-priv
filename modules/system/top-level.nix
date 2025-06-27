@@ -52,5 +52,11 @@ in
 
   config = {
     system.build.toplevel = baseSystemAssertWarn;
+    environment.variables = {
+      PATH = [
+        "/usr/sbin"
+        "/usr/bin"
+      ];
+    };
   };
 }

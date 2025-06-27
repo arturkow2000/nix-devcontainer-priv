@@ -119,6 +119,7 @@ in
           (utils.toShellPath config.users.users.root.shell)
           "--login"
         ];
+        env = lib.mapAttrsToList (n: v: "${n}=${v}") config.environment.variables;
       };
       layers = allLayers;
     };
