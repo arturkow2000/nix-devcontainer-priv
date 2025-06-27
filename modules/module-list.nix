@@ -90,4 +90,5 @@
   "${upstreamModulePath}/programs/zsh/zsh.nix"
   "${upstreamModulePath}/security/ca.nix"
   ./security/wrappers/default.nix
+  ./security/sudo.nix
 ]
