@@ -27,6 +27,9 @@ let
       ln -s /usr/{bin,sbin} $out/
 
       ln -s /run $out/var/run
+
+      ${config.system.systemBuilderCommands}
+      ${config.system.extraSystemBuilderCmds}
     '';
 
   baseSystem = pkgs.stdenvNoCC.mkDerivation {
@@ -50,6 +53,24 @@ in
         type = types.package;
         readOnly = true;
       };
+    };
+
+    system.systemBuilderCommands = lib.mkOption {
+      type = types.lines;
+      internal = true;
+      default = "";
+      description = ''
+        This code will be added to the builder creating the system store path.
+      '';
+    };
+
+    system.extraSystemBuilderCmds = lib.mkOption {
+      type = types.lines;
+      internal = true;
+      default = "";
+      description = ''
+        This code will be added to the builder creating the system store path.
+      '';
     };
   };
 
