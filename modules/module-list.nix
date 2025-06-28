@@ -82,6 +82,7 @@
   "${upstreamModulePath}/programs/less.nix"
   "${upstreamModulePath}/programs/nano.nix"
   "${upstreamModulePath}/programs/neovim.nix"
+  ./programs/nix-ld.nix
   "${upstreamModulePath}/programs/starship.nix"
   "${upstreamModulePath}/programs/vim.nix"
   "${upstreamModulePath}/programs/xonsh.nix"

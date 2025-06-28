@@ -51,6 +51,29 @@ in
         message = "Option environment.ldso32 currently only works on x86_64.";
       }
     ];
+
+    environment.pathsToLink =
+      lib.optional (config.environment.ldso != null) "/${libDir}"
+      ++ lib.optional (config.environment.ldso32 != null) "/${libDir32}";
+    environment.systemPackages = [
+      (pkgs.runCommandNoCCLocal "ldso" { } (
+        lib.optionalString (config.environment.ldso != null) ''
+          mkdir -p $out/${libDir}
+          ln -s ${config.environment.ldso} $out/${libDir}/${ldsoBasename}
+        ''
+        + lib.optionalString (config.environment.ldso32 != null) ''
+          mkdir -p $out/${libDir32}
+          ln -s ${config.environment.ldso32} $out/${libDir32}/${ldsoBasename32}
+        ''
+      ))
+    ];
+    system.extraSystemBuilderCmds =
+      lib.optionalString (config.environment.ldso != null) ''
+        ln -s /usr/${libDir} $out/
+      ''
+      + lib.optionalString (config.environment.ldso32 != null) ''
+        ln -s /usr/${libDir32} $out/
+      '';
   };
 
   meta.maintainers = with lib.maintainers; [ tejing ];

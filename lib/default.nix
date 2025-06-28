@@ -54,6 +54,10 @@ let
         (lib.mkIf (shellTheme == "starship") {
           starship.enable = true;
         })
+        {
+          # Make default as vscode, intellij, and all dynamically linked non-NixOS binaries.
+          nix-ld.enable = lib.mkDefault true;
+        }
       ];
       users.defaultUserShell = pkgs.${defaultShell};
     };
