@@ -65,6 +65,7 @@ let
       defaultShell ? "zsh",
       enabledShells ? [ defaultShell ],
       shellTheme ? "devcontainers",
+      packages ? [ ],
     }:
     let
       system = lib.nixosSystem (
@@ -79,6 +80,9 @@ let
                 shellTheme
                 ;
             })
+            {
+              environment.systemPackages = packages;
+            }
           ] ++ (args.modules or [ ]);
           inherit baseModules;
 
