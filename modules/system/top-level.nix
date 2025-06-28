@@ -23,6 +23,9 @@ let
         ln -s "${config.system.path}/$f" $out/usr/
       done < <(ls -A --zero "${config.system.path}" | sed --zero '/^etc$/d')
 
+      # devcontainer CLI (and vscode) expects at least /bin/sh available.
+      ln -s /usr/{bin,sbin} $out/
+
       ln -s /run $out/var/run
     '';
 
