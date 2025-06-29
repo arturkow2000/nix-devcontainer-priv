@@ -56,7 +56,11 @@ let
         })
         {
           # Make default as vscode, intellij, and all dynamically linked non-NixOS binaries.
-          nix-ld.enable = lib.mkDefault true;
+          nix-ld = {
+            enable = lib.mkDefault true;
+            # vscode needs libstdc++
+            libraries = [ pkgs.stdenv.cc.cc.lib ];
+          };
         }
       ];
       users.defaultUserShell = pkgs.${defaultShell};
