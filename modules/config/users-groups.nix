@@ -411,5 +411,16 @@ in
         mode = "0600";
       };
     };
+
+    system.extraSystemBuilderCmds = concatMapStringsSep "\n" (user: ''
+      mkdir -p "$out/${user.home}"
+    '') (lib.filter (user: user.createHome) (attrValues cfg.users));
+    system.build.perms = map (user: {
+      package = config.system.build.toplevel;
+      file = user.home;
+      uid = user.uid;
+      gid = cfg.groups.${user.name}.gid;
+      mode = user.homeMode;
+    }) (lib.filter (user: user.createHome) (attrValues cfg.users));
   };
 }

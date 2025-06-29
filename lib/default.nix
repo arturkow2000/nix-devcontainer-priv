@@ -14,6 +14,7 @@ let
       defaultShell,
       enabledShells,
       shellTheme,
+      defaultUser,
     }:
     { config, pkgs, ... }:
     {
@@ -63,7 +64,19 @@ let
           };
         }
       ];
-      users.defaultUserShell = pkgs.${defaultShell};
+      users = lib.mkMerge [
+        { defaultUserShell = pkgs.${defaultShell}; }
+        (lib.mkIf (defaultUser != null) {
+          users.${defaultUser.name} = {
+            inherit (defaultUser) uid;
+
+            isNormalUser = true;
+            group = defaultUser.name;
+            extraGroups = [ "users" ];
+          };
+          groups.${defaultUser.name} = { inherit (defaultUser) gid; };
+        })
+      ];
     };
 
   mkDevcontainer = lib.makeOverridable (
@@ -73,6 +86,11 @@ let
       defaultShell ? "zsh",
       enabledShells ? [ defaultShell ],
       shellTheme ? "devcontainers",
+      defaultUser ? {
+        name = "vscode";
+        uid = 1000;
+        gid = 1000;
+      },
       packages ? [ ],
     }:
     let
@@ -86,6 +104,7 @@ let
                 defaultShell
                 enabledShells
                 shellTheme
+                defaultUser
                 ;
             })
             {
