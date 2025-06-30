@@ -77,6 +77,15 @@ let
           groups.${defaultUser.name} = { inherit (defaultUser) gid; };
         })
       ];
+      security.sudo.extraRules = lib.optional (defaultUser.sudoNopasswd or true) {
+        users = [ defaultUser.name ];
+        commands = [
+          {
+            command = "ALL";
+            options = [ "NOPASSWD" ];
+          }
+        ];
+      };
     };
 
   mkDevcontainer = lib.makeOverridable (
@@ -90,6 +99,7 @@ let
         name = "vscode";
         uid = 1000;
         gid = 1000;
+        sudoNopasswd = true;
       },
       packages ? [ ],
     }:
