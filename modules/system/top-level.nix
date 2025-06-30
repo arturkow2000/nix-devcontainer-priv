@@ -82,5 +82,14 @@ in
         "/usr/bin"
       ];
     };
+    system.build.perms = [
+      {
+        package = config.system.build.toplevel;
+        file = "/tmp";
+        uid = 0;
+        gid = 0;
+        mode = "1777";
+      }
+    ];
   };
 }
