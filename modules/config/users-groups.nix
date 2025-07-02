@@ -399,7 +399,7 @@ in
             shell = utils.toShellPath u.shell;
           in
           "${u.name}:x:${builtins.toString u.uid}:${builtins.toString gid}:${u.description}:${u.home}:${shell}"
-        ) (attrValues cfg.users);
+        ) (lib.filter (user: user.enable) (attrValues cfg.users));
       };
       "group" = {
         text = concatMapStringsSep "\n" (
@@ -407,20 +407,22 @@ in
         ) (attrValues cfg.groups);
       };
       "shadow" = {
-        text = concatMapStringsSep "\n" (user: "${user.name}:!:1::::::") (attrValues cfg.users);
+        text = concatMapStringsSep "\n" (user: "${user.name}:!:1::::::") (
+          lib.filter (user: user.enable) (attrValues cfg.users)
+        );
         mode = "0600";
       };
     };
 
     system.extraSystemBuilderCmds = concatMapStringsSep "\n" (user: ''
       mkdir -p "$out/${user.home}"
-    '') (lib.filter (user: user.createHome) (attrValues cfg.users));
+    '') (lib.filter (user: user.enable && user.createHome) (attrValues cfg.users));
     system.build.perms = map (user: {
       package = config.system.build.toplevel;
       file = user.home;
       uid = user.uid;
       gid = cfg.groups.${user.name}.gid;
       mode = user.homeMode;
-    }) (lib.filter (user: user.createHome) (attrValues cfg.users));
+    }) (lib.filter (user: user.enable && user.createHome) (attrValues cfg.users));
   };
 }
