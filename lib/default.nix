@@ -56,12 +56,15 @@ let
           starship.enable = true;
         })
         {
-          # Make default as vscode, intellij, and all dynamically linked non-NixOS binaries.
+          # Make default as vscode, intellij, and all dynamically linked non-NixOS binaries need this.
           nix-ld = {
             enable = lib.mkDefault true;
             # vscode needs libstdc++
             libraries = [ pkgs.stdenv.cc.cc.lib ];
           };
+        }
+        {
+          git.enable = lib.mkDefault true;
         }
       ];
       users = lib.mkMerge [
