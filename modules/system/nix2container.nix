@@ -128,6 +128,7 @@ in
         env = lib.mapAttrsToList (n: v: "${n}=${v}") config.environment.variables;
       };
       layers = allLayers;
+      initializeNixDatabase = config.nix.enable;
     };
   };
 }

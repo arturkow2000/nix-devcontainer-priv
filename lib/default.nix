@@ -32,7 +32,6 @@ let
 
       system.nixos.containerName = name;
       system.stateVersion = lib.mkDefault lib.trivial.release;
-      nix.enable = lib.mkDefault false;
       programs = lib.mkMerge [
         (lib.foldl' (acc: x: acc // { ${x}.enable = true; }) { } (
           # bash is always enabled in NixOS
@@ -88,6 +87,13 @@ let
             options = [ "NOPASSWD" ];
           }
         ];
+      };
+      nix = {
+        enable = lib.mkDefault true;
+        extraOptions = ''
+          extra-experimental-features = nix-command flakes
+        '';
+        allowedUsers = lib.optional (defaultUser != null) defaultUser.name;
       };
     };
 
