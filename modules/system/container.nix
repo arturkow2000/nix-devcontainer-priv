@@ -41,6 +41,13 @@ in
         type = with types; nullOr string;
         default = null;
       };
+
+      containerMaxLayers = lib.mkOption {
+        type = lib.types.int;
+        # There used to be much lower limit in Docker, but now seems to work properly
+        # with latest version.
+        default = 256;
+      };
     };
 
     system.build = {

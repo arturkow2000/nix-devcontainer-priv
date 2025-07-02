@@ -38,6 +38,12 @@ let
   catchallLayer = nix2container.buildLayer {
     deps = strayDeps;
     layers = config.system.build.layers;
+    maxLayers =
+      let
+        n = config.system.nixos.containerMaxLayers - 2;
+      in
+      assert (n > 0 || abort "system.nixos.containerMaxLayers value is too low");
+      n;
     metadata.created_by = "nix2container catchall layer";
   };
 
