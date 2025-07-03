@@ -15,6 +15,7 @@ let
       enabledShells,
       shellTheme,
       defaultUser,
+      copyNixpkgs,
     }:
     { config, pkgs, ... }:
     {
@@ -94,6 +95,8 @@ let
           extra-experimental-features = nix-command flakes
         '';
         allowedUsers = lib.optional (defaultUser != null) defaultUser.name;
+        nixPath = lib.optional copyNixpkgs "nixpkgs=${pkgs.path}";
+        registry.nixpkgs.flake = lib.mkIf copyNixpkgs inputs.nixpkgs;
       };
     };
 
@@ -111,6 +114,7 @@ let
         sudoNopasswd = true;
       },
       packages ? [ ],
+      copyNixpkgs ? false,
     }:
     let
       system = lib.nixosSystem (
@@ -124,6 +128,7 @@ let
                 enabledShells
                 shellTheme
                 defaultUser
+                copyNixpkgs
                 ;
             })
             {
