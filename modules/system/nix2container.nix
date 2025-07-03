@@ -129,6 +129,8 @@ in
       };
       layers = allLayers;
       initializeNixDatabase = config.nix.enable;
+      nixUid = config.system.nixos.nixStoreUid;
+      nixGid = config.system.nixos.nixStoreGid;
     };
   };
 }

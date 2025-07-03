@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, config, ... }:
 let
   inherit (lib) types;
   fsAttrs =
@@ -47,6 +47,16 @@ in
         # There used to be much lower limit in Docker, but now seems to work properly
         # with latest version.
         default = 256;
+      };
+
+      nixStoreUid = lib.mkOption {
+        type = lib.types.int;
+        default = config.ids.root;
+      };
+
+      nixStoreGid = lib.mkOption {
+        type = lib.types.int;
+        default = config.ids.root;
       };
     };
 

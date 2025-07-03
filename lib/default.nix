@@ -16,6 +16,7 @@ let
       shellTheme,
       defaultUser,
       copyNixpkgs,
+      nixNonRoot,
     }:
     { config, pkgs, ... }:
     {
@@ -30,8 +31,21 @@ let
           message = "Unsupported shell theme \"${shellTheme}\"";
         }
       ];
-
-      system.nixos.containerName = name;
+      system.nixos = lib.mkMerge [
+        { containerName = name; }
+        (lib.mkIf (nixNonRoot && defaultUser != null) {
+          # This causes /nix/var and /nix/store directories to become owned by
+          # select uid/gid, however directories created under /nix/store are still
+          # owned by root preventing modyfication to the base system but allowing
+          # to download new stuff into Nix store.
+          #
+          # FIXME: gcroots created /nix/var/nix/gcroots/docker are for the container image
+          # (further package installations add per-user roots) and should be owned
+          # by root by are owned by given uid/gid.
+          nixStoreUid = defaultUser.uid;
+          nixStoreGid = defaultUser.gid;
+        })
+      ];
       system.stateVersion = lib.mkDefault lib.trivial.release;
       programs = lib.mkMerge [
         (lib.foldl' (acc: x: acc // { ${x}.enable = true; }) { } (
@@ -115,6 +129,7 @@ let
       },
       packages ? [ ],
       copyNixpkgs ? false,
+      nixNonRoot ? (defaultUser != null),
     }:
     let
       system = lib.nixosSystem (
@@ -129,6 +144,7 @@ let
                 shellTheme
                 defaultUser
                 copyNixpkgs
+                nixNonRoot
                 ;
             })
             {
