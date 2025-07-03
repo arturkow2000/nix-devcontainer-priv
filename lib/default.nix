@@ -107,6 +107,7 @@ let
         enable = lib.mkDefault true;
         extraOptions = ''
           extra-experimental-features = nix-command flakes
+          sandbox = false
         '';
         allowedUsers = lib.optional (defaultUser != null) defaultUser.name;
         nixPath = lib.optional copyNixpkgs "nixpkgs=${pkgs.path}";
