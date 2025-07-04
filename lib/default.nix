@@ -128,10 +128,16 @@ let
         gid = 1000;
         sudoNopasswd = true;
       },
-      packages ? [ ],
       copyNixpkgs ? false,
       nixNonRoot ? (defaultUser != null),
-    }:
+      packages ? [ ],
+      inputsFrom ? [ ],
+      buildInputs ? [ ],
+      nativeBuildInputs ? [ ],
+      propagatedBuildInputs ? [ ],
+      propagatedNativeBuildInputs ? [ ],
+      ...
+    }@opts:
     let
       system = lib.nixosSystem (
         {
@@ -148,9 +154,128 @@ let
                 nixNonRoot
                 ;
             })
-            {
-              environment.systemPackages = packages;
-            }
+            (
+              { pkgs, ... }:
+              let
+                # Mostly follows nixpkgs mkShell behavior, but instead of initializing
+                # environment during shell startup, extract here the variables we are
+                # interested in and update OCI archive metadata. Doing this through
+                # shell doesn't work well with vscode as extensions are started without
+                # using the shell.
+                rest = builtins.removeAttrs opts [
+                  "name"
+                  "defaultShell"
+                  "enabledShells"
+                  "shellTheme"
+                  "defaultUser"
+                  "copyNixpkgs"
+                  "nixNonRoot"
+                  "packages"
+                  "inputsFrom"
+                  "buildInputs"
+                  "nativeBuildInputs"
+                  "propagatedBuildInputs"
+                  "propagatedNativeBuildInputs"
+                  "shellHook"
+                ];
+                mergeInputs =
+                  name:
+                  (opts.${name} or [ ])
+                  ++ (lib.subtractLists inputsFrom (lib.flatten (lib.catAttrs name inputsFrom)));
+                envFile = pkgs.stdenvNoCC.mkDerivation (
+                  {
+                    name = "env";
+                    buildInputs = mergeInputs "buildInputs";
+                    nativeBuildInputs = packages ++ (mergeInputs "nativeBuildInputs");
+                    propagatedBuildInputs = mergeInputs "propagatedBuildInputs";
+                    propagatedNativeBuildInputs = mergeInputs "propagatedNativeBuildInputs";
+                    shellHook = lib.concatStringsSep "\n" (
+                      lib.catAttrs "shellHook" (lib.reverseList inputsFrom ++ [ opts ])
+                    );
+                    phases = [ "buildPhase" ];
+                    buildPhase = ''
+                      env -0 | ${lib.getExe pkgs.jq} -Rrs 'split("\u0000") | map(split("=")) | map(select(.[0] != null)) | map({(.[0]): (.[1:] | join("="))}) | add' > $out
+                    '';
+                    preferLocalBuild = true;
+                  }
+                  // rest
+                );
+                variableBlacklist = [
+                  # These variables may break the shell or other apps in various
+                  # ways and should be kept out.
+                  "HOME"
+                  "PWD"
+                  "TEMP"
+                  "TEMPDIR"
+                  "TMP"
+                  "TMPDIR"
+                  "SHELL"
+                  "TZ"
+                  "TERM"
+                  "SHLVL"
+                  # Will become invalid if was set to anything other than stdout/stderr.
+                  "NIX_LOG_FD"
+                  # By default Nix sets these two to invalid paths to prevent shell
+                  # from using host's certificates, but here we want to use certificates
+                  # installed in the container to be able to do SSL connections.
+                  "NIX_SSL_CERT_FILE"
+                  "SSL_CERT_FILE"
+                  "GZIP_NO_TIMESTAMPS"
+                  "CONFIG_SHELL"
+                  # Nix's wrappers require this. By default it points to path that
+                  # will be invalid in the container. Remove it, below we add our own.
+                  "NIX_BUILD_TOP"
+                  # Prevent this from leaking from build machine to other machines which
+                  # may have different amount of cores.
+                  "NIX_BUILD_CORES"
+                  # Those are to be consumed by builder of `envFile` and
+                  # generally make no sense outside of builder context.
+                  "_"
+                  "__structuredAttrs"
+                  "buildPhase"
+                  "builder"
+                  "cmakeFlags"
+                  "configureFlags"
+                  "doCheck"
+                  "doInstallCheck"
+                  "mesonFlags"
+                  "name"
+                  "out"
+                  "outputs"
+                  "patches"
+                  "phases"
+                  "preferLocalBuild"
+                  "shell"
+                  "shellHook"
+                  "stdenv"
+                  "strictDeps"
+                  "system"
+                ];
+                envFileWithContext = builtins.readFile envFile;
+                env = lib.filterAttrs (k: v: !(builtins.elem k variableBlacklist)) (
+                  # fromJSON can't accept string with context, drop the context here,
+                  # we recover it down below after processing JSON.
+                  builtins.fromJSON (builtins.unsafeDiscardStringContext envFileWithContext)
+                );
+                env' = lib.mapAttrs (
+                  k: v:
+                  let
+                    # Recover the context and add to all environment variables. Passing the variables
+                    # to config.environment.variables will install all dependencies.
+                    withContext = builtins.appendContext v (builtins.getContext envFileWithContext);
+                  in
+                  # Convert PATH into array. Must be done for PATH as we are already
+                  # setting it as array from elsewhere and Nix module system won't merge string array
+                  # with plain string.
+                  if k == "PATH" then lib.splitString ":" withContext else withContext
+                ) env;
+              in
+              {
+                environment.variables = env' // {
+                  NIX_BUILD_TOP = "/tmp/nix-build-top";
+                };
+              }
+            )
           ] ++ (args.modules or [ ]);
           inherit baseModules;
 
