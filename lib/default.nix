@@ -3,7 +3,7 @@ let
   inherit (inputs.nixpkgs) lib;
 
   baseModules = import ../modules/module-list.nix {
-    upstreamModulePath = "${inputs.nixpkgs.outPath}/nixos/modules";
+    __nixpkgs_path = "${inputs.nixpkgs.outPath}";
   };
 
   parsedArchToFlake = parsed: "${parsed.cpu.name}-${parsed.kernel.name}";
@@ -276,7 +276,8 @@ let
                 };
               }
             )
-          ] ++ (args.modules or [ ]);
+          ]
+          ++ (args.modules or [ ]);
           inherit baseModules;
 
           specialArgs = {

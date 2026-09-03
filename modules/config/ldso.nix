@@ -1,3 +1,5 @@
+# Based on nixpkgs ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Adapted for containers (statically created links, no systemd dependency).
 {
   config,
   lib,

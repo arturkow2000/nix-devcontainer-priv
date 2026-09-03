@@ -61,7 +61,7 @@
             let
               inherit (inputs.nixpkgs) lib;
               baseModules = import ./modules/module-list.nix {
-                upstreamModulePath = "${pkgs.path}/nixos/modules";
+                __nixpkgs_path = pkgs.path;
               };
               optionsToJSON =
                 { options }:
