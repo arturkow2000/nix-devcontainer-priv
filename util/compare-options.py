@@ -80,10 +80,49 @@ options_filter_out = [
     r"^programs\.kubeswitch\.",  # k8s related
     r"^programs\.schroot\.",
     r"^programs\.extra-container\.",
-    # Security related stuff, e.g. apparmor, selinux, polkit, etc.
-    # Probably the only usable things would be pam configuration. Currently we have custom, stripped down PAM
-    # config, incompatible with upstream interface.
-    r"^security\.",
+    # Security related options, mostly unsupported (strong kernel dependency, niche uses in container which is already sandboxed), except
+    # for nixos setuid/setcap wrappers (we have custom wrapper implementation that works in containers),
+    # and sudo - typically we run as non-root in the container, e.g. vscode user, but we want easy to access to root.
+    r"^security\.acme\.",
+    r"^security\.agnos\.",
+    r"^security\.allowSimultaneousMultithreading$",
+    r"^security\.allowUserNamespaces$",
+    r"^security\.apparmor\.",
+    r"^security\.auditd?\.",
+    r"^security\.chromiumSuidSandbox\.",
+    r"^security\.dhparams\.",
+    # TODO: we could use this instead of standard sudo?
+    # probably most devcontainer users use sudo only passwordless escalation from vscode to root user and don't thousands of weird sudo features,
+    # so we could just something simpler, and get rid of PAM too (it's mostly broken anyway).
+    r"^security\.doas\.",
+    r"^security\.duosec\.",
+    r"^security\.forcePageTableIsolation$",
+    r"^security\.googleOsLogin\.",
+    r"^security\.hideProcessInformation$",
+    r"^security\.initialRootPassword$",
+    r"^security\.isolate\.",
+    r"^security\.krb5\.",
+    r"^security\.lockKernelModules$",
+    r"^security\.ipa\.",
+    r"^security\.klogd\.",
+    r"^security\.loginDefs\.(?!package$)",
+    r"^security\.lsm$",
+    # Currently we support only
+    # security.pam.package
+    # security.pam.whitelistedServices
+    r"^security\.pam\.(?!package$|whitelistedServices$)",
+    r"^security\.please\.",
+    r"^security\.polkit\.",
+    r"^security\.protectKernelImage$",
+    r"^security\.rngd\.",
+    r"^security\.rtkit\.",
+    r"^security\.soteria\.",
+    r"^security\.sudo-rs\.",  # TODO: we could use this instead of standard sudo
+    r"^security\.tpm2\.",
+    r"^security\.unprivilegedUsernsClone$",
+    r"^security\.virtualisation\.flushL1DataCache$",
+    r"^security\.virtualization\.flushL1DataCache$",
+    r"^security\.wrapperDirSize$",
     # For GUI applications, not supported.
     r"^xdg\.",
     r"^appstream\.",
@@ -325,13 +364,14 @@ options_filter_out = [
     r"^programs\.wavemon\.",
     r"^programs\.zmap\.",
     # TODO: basic stuff, we do want these
-    r"^programs\.bash\.",
-    r"^programs\.zsh\.",
+    r"^programs\.bash\.vteIntegration$",
+    r"^programs\.zsh\.vteIntegration$",
     r"^programs\.man\.",
     r"^programs\.fuse\.",
     r"^programs\.info\.",  # removed from latest?
     r"^programs\.gnupg\.package$",
-    r"^documentation\.",
+    r"^documentation\.man\.mandoc\.",
+    r"^documentation\.nixos\.",
     # Not usable without daemon
     r"^nix\.daemonCPUSchedPolicy$",
     r"^nix\.daemonIONiceLevel$",
@@ -495,6 +535,7 @@ def main():
     new_downstream_options = []
     # Options that definitions differ, e.g. changed type, defaults, description, etc.
     differing_options = {}
+    downstream_filtered_out = []
 
     # Pass 1. Find options that have been added to upstream NixOS but are not present in nix-devcontainer.
     for k in nixos:
@@ -517,6 +558,11 @@ def main():
         for r in options_downstream_only_compiled:
             if r.match(k) is not None:
                 filtered = True
+                break
+        # Also check if we have any options that we filtered-out in first pass, yet we have them in downstream.
+        for r in options_filter_out_compiled:
+            if r.match(k) is not None:
+                downstream_filtered_out.append(k)
                 break
         if filtered:
             continue
@@ -598,6 +644,15 @@ def main():
             file=sys.stderr,
         )
         for opt in new_downstream_options:
+            print(f"  {opt}", file=sys.stderr)
+
+    if len(downstream_filtered_out) > 0:
+        error = True
+        print(
+            "Some options are present in nix-devcontainer, yet we ignore equivalents from NixOS (too strong regexes?):",
+            file=sys.stderr,
+        )
+        for opt in downstream_filtered_out:
             print(f"  {opt}", file=sys.stderr)
 
     if len(differing_options) > 0:
