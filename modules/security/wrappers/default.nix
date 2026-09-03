@@ -155,13 +155,13 @@ let
       uid = toId config.users.users "uid" owner;
       gid = toId config.users.groups "gid" group;
       mode = builtins.readFile (
-        pkgs.runCommandNoCCLocal "mode2octal" { } ''
+        pkgs.runCommandLocal "mode2octal" { } ''
           ${lib.getExe mode2octal} u${if setuid then "+" else "-"}s,g${if setgid then "+" else "-"}s,${permissions} > $out
         ''
       );
     };
 
-  mkWrapperPackage = pkgs.runCommandNoCCLocal "wrappers" { } (
+  mkWrapperPackage = pkgs.runCommandLocal "wrappers" { } (
     lib.concatStringsSep "\n" (
       [
         ''

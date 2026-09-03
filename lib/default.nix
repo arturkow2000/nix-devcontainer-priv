@@ -109,7 +109,7 @@ let
           extra-experimental-features = nix-command flakes
           sandbox = false
         '';
-        allowedUsers = lib.optional (defaultUser != null) defaultUser.name;
+        settings.allowed-users = lib.optional (defaultUser != null) defaultUser.name;
         nixPath = lib.optional copyNixpkgs "nixpkgs=${pkgs.path}";
         registry.nixpkgs.flake = lib.mkIf copyNixpkgs inputs.nixpkgs;
       };
@@ -292,7 +292,7 @@ let
       );
 
       metaDerivation =
-        system.pkgs.runCommandNoCC system.config.system.build.toplevel.name
+        system.pkgs.runCommand system.config.system.build.toplevel.name
           {
             passAsFile = [ "text" ];
             text = ''

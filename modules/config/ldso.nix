@@ -58,7 +58,7 @@ in
       lib.optional (config.environment.ldso != null) "/${libDir}"
       ++ lib.optional (config.environment.ldso32 != null) "/${libDir32}";
     environment.systemPackages = [
-      (pkgs.runCommandNoCCLocal "ldso" { } (
+      (pkgs.runCommandLocal "ldso" { } (
         lib.optionalString (config.environment.ldso != null) ''
           mkdir -p $out/${libDir}
           ln -s ${config.environment.ldso} $out/${libDir}/${ldsoBasename}

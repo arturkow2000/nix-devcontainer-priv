@@ -38,7 +38,7 @@ in
   options = {
     system.nixos = {
       containerName = lib.mkOption {
-        type = with types; nullOr string;
+        type = with types; nullOr str;
         default = null;
       };
 

@@ -6,7 +6,7 @@
 }:
 let
   etc' = lib.filter (f: f.enable) (lib.attrValues config.environment.etc);
-  etc = pkgs.runCommandNoCCLocal "etc" { } ''
+  etc = pkgs.runCommandLocal "etc" { } ''
     set -euo pipefail
     first=1
     makeEtcEntry() {
@@ -81,7 +81,7 @@ let
 
     echo -n "}" >> "$out/attrs.json"
   '';
-  etcMerged = pkgs.runCommandNoCCLocal "etc-merged" { } ''
+  etcMerged = pkgs.runCommandLocal "etc-merged" { } ''
     copyAll() {
       while IFS= read -rd "" f; do
         rel="$(realpath --no-symlinks --relative-to="$1" "$f")"
