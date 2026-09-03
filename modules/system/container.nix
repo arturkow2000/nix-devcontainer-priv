@@ -51,12 +51,12 @@ in
 
       nixStoreUid = lib.mkOption {
         type = lib.types.int;
-        default = config.ids.root;
+        default = config.ids.uids.root;
       };
 
       nixStoreGid = lib.mkOption {
         type = lib.types.int;
-        default = config.ids.root;
+        default = config.ids.uids.root;
       };
     };
 

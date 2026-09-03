@@ -52,6 +52,11 @@ in
       toplevel = lib.mkOption {
         type = types.package;
         readOnly = true;
+        description = ''
+          This option contains the store path that typically represents a NixOS system.
+
+          You can read this path in a custom deployment tool for example.
+        '';
       };
     };
 

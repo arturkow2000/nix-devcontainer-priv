@@ -43,7 +43,7 @@
         };
 
       perSystem =
-        { inputs', ... }:
+        { system, inputs', ... }:
         let
           devPackages = with pkgs; [ llvmPackages_latest.clang ];
           pkgs = inputs'.nixpkgs.legacyPackages.extend self.overlays.nix-devcontainer;
@@ -56,6 +56,77 @@
             name = "nix-devcontainer-clang";
             packages = devPackages;
           };
+          # Private stuff for CI/CD, kept as legacy so they are hidden from nix flake show.
+          legacyPackages =
+            let
+              inherit (inputs.nixpkgs) lib;
+              baseModules = import ./modules/module-list.nix {
+                upstreamModulePath = "${pkgs.path}/nixos/modules";
+              };
+              optionsToJSON =
+                { options }:
+                let
+                  rawOpts = builtins.listToAttrs (
+                    map (value: {
+                      inherit (value) name;
+                      inherit value;
+                    }) (lib.optionAttrSetToDocList options)
+                  );
+                  filterEntries = n: v: !lib.any (v: v == "_module") v.loc;
+                  filterFields =
+                    v:
+                    removeAttrs v [
+                      "declarations"
+                      "loc"
+                      "name"
+                    ];
+                in
+                lib.pipe rawOpts [
+                  (lib.filterAttrs filterEntries)
+                  (lib.mapAttrs (_: filterFields))
+                  builtins.toJSON
+                ];
+              optionsToJSONDrv =
+                args:
+                let
+                  options = optionsToJSON args;
+                in
+                pkgs.runCommand "options.json"
+                  {
+                    nativeBuildInputs = with pkgs; [ jq ];
+                    passAsFile = [ "options" ];
+                    options = builtins.unsafeDiscardStringContext options;
+                  }
+                  ''
+                    cat "$optionsPath" | jq > "$out"
+                  '';
+            in
+            {
+              __nix-devcontainer-options = optionsToJSONDrv {
+                options =
+                  (lib.evalModules {
+                    modules = baseModules ++ [
+                      {
+                        # Required, or eval will fail.
+                        nixpkgs.hostPlatform = system;
+                      }
+                    ];
+                  }).options;
+              };
+              __nixos-options = optionsToJSONDrv {
+                options =
+                  (lib.nixosSystem {
+                    modules = [
+                      ({ config, ... }: {
+                        # Required, or eval will fail.
+                        nixpkgs.hostPlatform = system;
+                        # silence warning
+                        system.stateVersion = config.system.nixos.release;
+                      })
+                    ];
+                  }).options;
+              };
+            };
         };
     };
 }
