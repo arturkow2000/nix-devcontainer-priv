@@ -70,5 +70,6 @@
   ./programs/zsh/zsh-syntax-highlighting.nix
   ./programs/zsh/zsh.nix
   ./programs/nushell.nix
+  ./programs/nushell-devcontainer.nix
   ./security/ca.nix
 ]

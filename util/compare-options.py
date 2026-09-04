@@ -431,6 +431,8 @@ options_downstream_only = [
     r"^system\.nixos\.containerName$",
     r"^system\.nixos\.nixStore(Uid|Gid)$",
     r"^users\.populateUnixDatabase$",
+    r"^programs\.nushell\.settings$",
+    r"^programs\.direnv\.enableNushellIntegration$",
 ]
 options_downstream_only_compiled = [re.compile(r) for r in options_downstream_only]
 
