@@ -103,7 +103,7 @@
                     cat "$optionsPath" | jq > "$out"
                   '';
             in
-            {
+            rec {
               __nix-devcontainer-options = optionsToJSONDrv {
                 options =
                   (lib.evalModules {
@@ -128,6 +128,10 @@
                     ];
                   }).options;
               };
+              # Small helper for quicker comparison.
+              compare-options = pkgs.writeShellScriptBin "compare-options" ''
+                ${lib.getExe pkgs.python3} ${./util/compare-options.py} ${__nixos-options} ${__nix-devcontainer-options}
+              '';
             };
         };
     };
