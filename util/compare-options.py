@@ -488,22 +488,10 @@ def options_compare(
                 expected_description_md5,
             ]
 
-    if opt_devcontainer.get("internal", False) != opt_nixos.get("internal", False):
-        differences["internal"] = [
-            opt_devcontainer.get("internal", False),
-            opt_nixos.get("internal", False),
-        ]
-
     if opt_devcontainer.get("readOnly", False) != opt_nixos.get("readOnly", False):
         differences["readOnly"] = [
             opt_devcontainer.get("readOnly", False),
             opt_nixos.get("readOnly", False),
-        ]
-
-    if opt_devcontainer.get("visible", True) != opt_nixos.get("visible", True):
-        differences["visible"] = [
-            opt_devcontainer.get("visible", True),
-            opt_nixos.get("visible", True),
         ]
 
     if "expected_nixos_type" in kwargs:

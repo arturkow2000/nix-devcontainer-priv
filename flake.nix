@@ -72,13 +72,15 @@
                       inherit value;
                     }) (lib.optionAttrSetToDocList options)
                   );
-                  filterEntries = n: v: !lib.any (v: v == "_module") v.loc;
+                  filterEntries = n: v: !lib.any (v: v == "_module") v.loc && v.visible && !v.internal;
                   filterFields =
                     v:
                     removeAttrs v [
                       "declarations"
                       "loc"
                       "name"
+                      "visible"
+                      "internal"
                     ];
                 in
                 lib.pipe rawOpts [
