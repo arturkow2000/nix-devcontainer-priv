@@ -60,7 +60,7 @@
           legacyPackages =
             let
               inherit (inputs.nixpkgs) lib;
-              baseModules = import ./modules/module-list.nix {
+              baseModules = import ./modules/nixos/module-list.nix {
                 __nixpkgs_path = pkgs.path;
               };
               optionsToJSON =

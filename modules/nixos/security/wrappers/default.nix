@@ -7,7 +7,7 @@
 let
   # Custom program that uses gnulib to convert permission string representation into octal form.
   # This provides 100% compatibility with upstream implementation which uses chmod.
-  mode2octal = pkgs.buildPackages.callPackage ../../../util/mode2octal { };
+  mode2octal = pkgs.buildPackages.callPackage ../../../../util/mode2octal { };
 
   wrappers = lib.filterAttrs (name: value: value.enable) config.security.wrappers;
 

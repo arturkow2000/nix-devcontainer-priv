@@ -122,11 +122,11 @@ in
     for file in files_to_vendor:
         if isinstance(file, WithProcessors):
             path_src = nixpkgs / "nixos" / "modules" / Path(file.file)
-            path_dst = root / "modules" / Path(file.file)
+            path_dst = root / "modules" / "nixos" / Path(file.file)
             processors = file.processors
         else:
             path_src = nixpkgs / "nixos" / "modules" / Path(file)
-            path_dst = root / "modules" / Path(file)
+            path_dst = root / "modules" / "nixos" / Path(file)
             processors = []
         os.makedirs(path_dst.parent, exist_ok=True)
 
