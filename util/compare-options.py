@@ -362,7 +362,6 @@ options_filter_out = [
     r"^programs\.zmap\.",
     r"^programs\.whois\.",
     # TODO: basic stuff, we do want these
-    r"^programs\.nushell\.",
     r"^security\.shadow\.su\.package$",
     r"^programs\.fuse\.",
     r"^programs\.gnupg\.package$",

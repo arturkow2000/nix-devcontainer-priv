@@ -87,6 +87,7 @@ nixos_module_files_to_vendor = [
     "programs/zsh/zsh-autoenv.nix",
     "programs/zsh/zsh-autosuggestions.nix",
     "programs/zsh/zsh-syntax-highlighting.nix",
+    "programs/nushell.nix",
     "security/ca.nix",
 ]
 
