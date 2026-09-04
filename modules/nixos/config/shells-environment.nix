@@ -1,3 +1,9 @@
+# Based on nixpkgs 24a69cdc73f76df4dde9edabcda6737f55b66627.
+# Changes:
+#   - remove environment.profiles
+#   - remove environment.profileRelativeEnvVars
+#   - remove environment.homeBinInPath (PAM bypass)
+#   - remove environment.localBinInPath (PAM bypass)
 {
   config,
   lib,
