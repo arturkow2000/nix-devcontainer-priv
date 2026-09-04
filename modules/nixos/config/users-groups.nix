@@ -1,3 +1,8 @@
+# Custom module for managing Unix users and groups.
+# Adapted for OCI containers:
+# - no dependency on systemd
+# - no runtime init
+# - fully static generation of Unix user/group databases
 {
   config,
   lib,
@@ -322,53 +327,52 @@ in
   };
 
   config = {
-    assertions =
-      [
-        {
-          assertion = uidsAreUnique && gidsAreUnique;
-          message = "UIDs and GIDs must be unique!";
-        }
-        {
-          assertion = usersWithoutExistingGroup == { };
-          message =
-            let
-              errUsers = attrNames usersWithoutExistingGroup;
-            in
-            ''
-              The following users have a primary group that is undefined: ${concatStringsSep " " errUsers}
+    assertions = [
+      {
+        assertion = uidsAreUnique && gidsAreUnique;
+        message = "UIDs and GIDs must be unique!";
+      }
+      {
+        assertion = usersWithoutExistingGroup == { };
+        message =
+          let
+            errUsers = attrNames usersWithoutExistingGroup;
+          in
+          ''
+            The following users have a primary group that is undefined: ${concatStringsSep " " errUsers}
+          '';
+      }
+    ]
+    ++ flatten (
+      flip mapAttrsToList cfg.users (
+        name: user: [
+          {
+            assertion = builtins.match "[a-zA-Z0-9_.][a-zA-Z0-9_.-]*" user.name != null;
+            message = "The username \"${user.name}\" is not valid";
+          }
+          {
+            assertion = user.isNormalUser && user.uid != null -> user.uid >= 1000;
+            message = ''
+              A user cannot have a users.users.${user.name}.uid set below 1000 and set users.users.${user.name}.isNormalUser.
+              Either users.users.${user.name}.isSystemUser must be set to true instead of users.users.${user.name}.isNormalUser
+              or users.users.${user.name}.uid must be changed to 1000 or above.
             '';
-        }
-      ]
-      ++ flatten (
-        flip mapAttrsToList cfg.users (
-          name: user: [
-            {
-              assertion = builtins.match "[a-zA-Z0-9_.][a-zA-Z0-9_.-]*" user.name != null;
-              message = "The username \"${user.name}\" is not valid";
-            }
-            {
-              assertion = user.isNormalUser && user.uid != null -> user.uid >= 1000;
-              message = ''
-                A user cannot have a users.users.${user.name}.uid set below 1000 and set users.users.${user.name}.isNormalUser.
-                Either users.users.${user.name}.isSystemUser must be set to true instead of users.users.${user.name}.isNormalUser
-                or users.users.${user.name}.uid must be changed to 1000 or above.
-              '';
-            }
-            {
-              assertion =
-                let
-                  # we do an extra check on isNormalUser here, to not trigger this assertion when isNormalUser is set and uid to < 1000
-                  isEffectivelySystemUser =
-                    user.isSystemUser || (user.uid != null && user.uid < 1000 && !user.isNormalUser);
-                in
-                xor isEffectivelySystemUser user.isNormalUser;
-              message = ''
-                Exactly one of users.users.${user.name}.isSystemUser and users.users.${user.name}.isNormalUser must be set.
-              '';
-            }
-          ]
-        )
-      );
+          }
+          {
+            assertion =
+              let
+                # we do an extra check on isNormalUser here, to not trigger this assertion when isNormalUser is set and uid to < 1000
+                isEffectivelySystemUser =
+                  user.isSystemUser || (user.uid != null && user.uid < 1000 && !user.isNormalUser);
+              in
+              xor isEffectivelySystemUser user.isNormalUser;
+            message = ''
+              Exactly one of users.users.${user.name}.isSystemUser and users.users.${user.name}.isNormalUser must be set.
+            '';
+          }
+        ]
+      )
+    );
 
     users.users = {
       root = {
@@ -398,12 +402,12 @@ in
             inherit (cfg.groups."${u.group}") gid;
             shell = utils.toShellPath u.shell;
           in
-          "${u.name}:x:${builtins.toString u.uid}:${builtins.toString gid}:${u.description}:${u.home}:${shell}"
+          "${u.name}:x:${toString u.uid}:${toString gid}:${u.description}:${u.home}:${shell}"
         ) (lib.filter (user: user.enable) (attrValues cfg.users));
       };
       "group" = {
         text = concatMapStringsSep "\n" (
-          group: "${group.name}:x:${builtins.toString group.gid}:${concatStringsSep "," group.members}"
+          group: "${group.name}:x:${toString group.gid}:${concatStringsSep "," group.members}"
         ) (attrValues cfg.groups);
       };
       "shadow" = {
