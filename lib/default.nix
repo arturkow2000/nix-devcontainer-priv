@@ -258,6 +258,8 @@ let
                   "stdenv"
                   "strictDeps"
                   "system"
+                  # Don't allow, patchelf sets this breaking loading of nushell's vendor modules.
+                  "XDG_DATA_DIRS"
                 ];
                 envFileWithContext = builtins.readFile envFile;
                 env = lib.filterAttrs (k: v: !(builtins.elem k variableBlacklist)) (
