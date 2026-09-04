@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -44,7 +44,7 @@ in
     security.pki.certificateFiles = lib.mkOption {
       type = lib.types.listOf lib.types.path;
       default = [ ];
-      example = lib.literalExpression ''[ "''${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ]'';
+      example = lib.literalExpression ''[ "''${pkgs.dn42-cacert}/etc/ssl/certs/dn42-ca.crt" ]'';
       description = ''
         A list of files containing trusted root certificates in PEM
         format. These are concatenated to form

@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -35,7 +35,7 @@ in
       description = ''
         The user IDs used in NixOS.
       '';
-      type = types.attrsOf types.int;
+      type = types.attrsOf types.ints.u32;
     };
 
     ids.gids = lib.mkOption {
@@ -43,7 +43,7 @@ in
       description = ''
         The group IDs used in NixOS.
       '';
-      type = types.attrsOf types.int;
+      type = types.attrsOf types.ints.u32;
     };
 
   };
@@ -88,7 +88,7 @@ in
       tor = 35;
       cups = 36;
       foldingathome = 37;
-      sabnzbd = 38;
+      #sabnzbd = 38; # dropped in 26.05
       #kdm = 39; # dropped in 17.03
       #ghostone = 40; # dropped in 18.03
       git = 41;
@@ -198,7 +198,7 @@ in
       redmine = 147;
       #seeks = 148; # removed 2020-06-21
       prosody = 149;
-      i2pd = 150;
+      # i2pd = 150; # dynamically allocated as of 2026-08-07
       systemd-coredump = 151;
       systemd-network = 152;
       systemd-resolve = 153;
@@ -250,11 +250,11 @@ in
       subsonic = 204;
       # riak = 205; # unused, remove 2022-07-22
       #shout = 206; # dynamically allocated as of 2021-09-18, module removed 2024-10-19
-      gateone = 207;
+      #gateone = 207; # removed 2025-08-21
       namecoin = 208;
       #lxd = 210; # unused
       #kibana = 211;# dynamically allocated as of 2021-09-03
-      xtreemfs = 212;
+      # xtreemfs = 212; # dropped in 26.05
       calibre-server = 213;
       #heapster = 214; #dynamically allocated as of 2021-09-17
       bepasty = 215;
@@ -538,7 +538,7 @@ in
       redmine = 147;
       #seeks = 148; # removed 2020-06-21
       prosody = 149;
-      i2pd = 150;
+      # i2pd = 150; # dynamically allocated as of 2026-08-07
       systemd-network = 152;
       systemd-resolve = 153;
       systemd-timesync = 154;
@@ -574,7 +574,7 @@ in
       lambdabot = 191;
       asterisk = 192;
       plex = 193;
-      sabnzbd = 194;
+      #sabnzbd = 194; # dropped in 26.05
       #grafana = 196; #unused
       #skydns = 197; #unused
       # ripple-rest = 198; # unused, removed 2017-08-12
@@ -586,11 +586,10 @@ in
       subsonic = 204;
       # riak = 205;#unused, removed 2022-06-22
       #shout = 206; #unused
-      gateone = 207;
+      #gateone = 207; #removed 2025-08-21
       namecoin = 208;
-      #lxd = 210; # unused
       #kibana = 211;
-      xtreemfs = 212;
+      # xtreemfs = 212; # dropped in 26.05
       calibre-server = 213;
       bepasty = 215;
       # pumpio = 216; # unused, removed 2018-02-24
@@ -695,6 +694,7 @@ in
       rstudio-server = 324;
       localtimed = 325;
       automatic-timezoned = 326;
+      clock = 327;
 
       # When adding a gid, make sure it doesn't match an existing
       # uid. Users and groups with the same name should have equal

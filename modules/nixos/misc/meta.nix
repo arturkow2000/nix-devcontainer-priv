@@ -1,43 +1,9 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
 { lib, ... }:
 let
-  maintainer = lib.mkOptionType {
-    name = "maintainer";
-    check = email: lib.elem email (lib.attrValues lib.maintainers);
-    merge =
-      loc: defs:
-      lib.listToAttrs (lib.singleton (lib.nameValuePair (lib.last defs).file (lib.last defs).value));
-  };
-
-  listOfMaintainers = lib.types.listOf maintainer // {
-    # Returns list of
-    #   { "module-file" = [
-    #        "maintainer1 <first@nixos.org>"
-    #        "maintainer2 <second@nixos.org>" ];
-    #   }
-    merge =
-      loc: defs:
-      lib.zipAttrs (
-        lib.flatten (
-          lib.imap1 (
-            n: def:
-            lib.imap1 (
-              m: def':
-              maintainer.merge (loc ++ [ "[${toString n}-${toString m}]" ]) [
-                {
-                  inherit (def) file;
-                  value = def';
-                }
-              ]
-            ) def.value
-          ) defs
-        )
-      );
-  };
-
   docFile = lib.types.path // {
     # Returns tuples of
     #   { file = "module location"; value = <path/to/doc.xml>; }
@@ -46,19 +12,10 @@ let
 in
 
 {
+  imports = [ ../../../modules/generic/meta-maintainers.nix ];
+
   options = {
     meta = {
-
-      maintainers = lib.mkOption {
-        type = listOfMaintainers;
-        internal = true;
-        default = [ ];
-        example = lib.literalExpression ''[ lib.maintainers.all ]'';
-        description = ''
-          List of maintainers of each module.  This option should be defined at
-          most once per module.
-        '';
-      };
 
       doc = lib.mkOption {
         type = docFile;
@@ -88,5 +45,8 @@ in
     };
   };
 
-  meta.maintainers = lib.singleton lib.maintainers.pierron;
+  meta.maintainers = with lib.maintainers; [
+    pierron
+    roberth
+  ];
 }

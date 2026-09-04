@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -16,17 +16,18 @@ let
     shell:
     if (shell == "fish") then
       ''
-        ${lib.getExe pkgs.git-worktree-switcher} init ${shell} | source
+        ${lib.getExe cfg.package} init ${shell} | source
       ''
     else
       ''
-        eval "$(${lib.getExe pkgs.git-worktree-switcher} init ${shell})"
+        eval "$(${lib.getExe cfg.package} init ${shell})"
       '';
 in
 {
   options = {
     programs.git-worktree-switcher = {
       enable = lib.mkEnableOption "git-worktree-switcher, switch between git worktrees with speed.";
+      package = lib.mkPackageOption pkgs "git-worktree-switcher" { };
     };
   };
 

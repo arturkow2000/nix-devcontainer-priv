@@ -13,12 +13,9 @@ options_filter_out = [
     r"^zramSwap\.",
     r"^power\.",
     r"^swapDevices(\..*$|$)",
-    r"^sound\.",
     r"^powerManagement\.",
-    r"^system\.requiredKernelConfig",
     r"^system\.etc\.overlay",
     r"^system\.boot\.",
-    r"^system\.build\.installBootLoader$",
     r"^boot\.",
     r"^console\.",
     r"^fileSystems(\..*$|$)",
@@ -29,9 +26,7 @@ options_filter_out = [
     r"^programs\.corefreq\.",
     r"^programs\.tuxclocker\.",
     r"^programs\.cpu-energy-meter\.",
-    r"^programs\.ecryptfs\.",
     r"^programs\.udevil\.",
-    r"^programs\.light\.",
     r"^programs\.streamcontroller\.",
     r"^programs\.flashprog\.",  # udev rules
     r"^programs\.weylus\.",  # for using phone/tablet as touchscreen
@@ -39,6 +34,7 @@ options_filter_out = [
     r"^programs\.kbdlight\.",  # for controlling kbd backlight on macbooks
     r"^programs\.rog-control-center\.",
     r"^programs\.ryzen-monitor-ng\.",
+    r"^programs\.yubikey-manager\.",
     r"^programs\.yubikey-touch-detector\.",
     r"^programs\.mdevctl\.",  # mediated devices stuff
     r"^programs\.immersed(\.|-vr$)",  # vr stuff
@@ -55,24 +51,33 @@ options_filter_out = [
     r"^programs\.projecteur\.",
     r"^programs\.quark-goldleaf\.",
     r"^programs\.sedutil\.",
+    r"^programs\.xppen\.",
+    r"^programs\.solaar\.",
+    r"^programs\.entropy\.",
+    r"^programs\.idescriptor\.",
+    r"^programs\.librepods\.",
+    r"^programs\.nvrs\.",
+    r"^programs\.pmount\.",
     r"^ec2\.",
     r"^nixops\.enableDeprecatedAutoLuks",
-    r"^snapraid$",
     # Mostly unusable, but does have some things we may want, e.g. printer drivers, other usermode drivers, for e.g. logic analyzers, JTAG/SWD debuggers, etc.
     r"^hardware\.",
     # Not configurable here, networking is controlled by OCI runtime, not us.
     r"^networking\.",
+    r"^nix\.firewall\.",
     r"^environment\.wvdial\.",
     # Possible, but rarely used in containers, systemd depends on many kernel interfaces typically not
     # available in containers so requires privileged containers (not necessarily --privileged flag,
     # specific capabilities may be added using --cap-add).
     r"^systemd\.",
     r"^services\.",
+    r"^system\.services$",
+    # Not supported, cache is always generated at build time.
+    r"^documentation\.man\.cache\.generateAtRuntime$",
     # Things related to all sorts virtualization: VMs (KVM, Xen), containerization (Docker, containerD).
     # Typically not used from devcontainers. Dependent on kernel (privileged containers) and systemd.
     r"^virtualisation\.",
     r"^containers(\..*$|$)",
-    r"^docker-containers$",
     r"^openstack\.",
     r"^programs\.virt-manager\.",
     r"^programs\.singularity\.",
@@ -90,7 +95,8 @@ options_filter_out = [
     r"^security\.apparmor\.",
     r"^security\.auditd?\.",
     r"^security\.chromiumSuidSandbox\.",
-    r"^security\.dhparams\.",
+    r"^security\.account-utils\.",
+    r"^security\.run0\.",  # an alternative to sudo, depends on systemd and polkit, so not usable by us.
     # TODO: we could use this instead of standard sudo?
     # probably most devcontainer users use sudo only passwordless escalation from vscode to root user and don't thousands of weird sudo features,
     # so we could just something simpler, and get rid of PAM too (it's mostly broken anyway).
@@ -98,13 +104,10 @@ options_filter_out = [
     r"^security\.duosec\.",
     r"^security\.forcePageTableIsolation$",
     r"^security\.googleOsLogin\.",
-    r"^security\.hideProcessInformation$",
-    r"^security\.initialRootPassword$",
     r"^security\.isolate\.",
     r"^security\.krb5\.",
     r"^security\.lockKernelModules$",
     r"^security\.ipa\.",
-    r"^security\.klogd\.",
     r"^security\.loginDefs\.(?!package$)",
     r"^security\.lsm$",
     # Currently we support only
@@ -114,31 +117,26 @@ options_filter_out = [
     r"^security\.please\.",
     r"^security\.polkit\.",
     r"^security\.protectKernelImage$",
-    r"^security\.rngd\.",
     r"^security\.rtkit\.",
     r"^security\.soteria\.",
     r"^security\.sudo-rs\.",  # TODO: we could use this instead of standard sudo
     r"^security\.tpm2\.",
-    r"^security\.unprivilegedUsernsClone$",
     r"^security\.virtualisation\.flushL1DataCache$",
-    r"^security\.virtualization\.flushL1DataCache$",
     r"^security\.wrapperDirSize$",
     # For GUI applications, not supported.
     r"^xdg\.",
     r"^appstream\.",
     r"^qt5?\.",
-    r"^programs\.qt5ct\.",
     r"^fonts\.",
     r"^gtk\.",
     r"^programs\.gdk-pixbuf\.",
     # TODO: some features could be present.
     r"^i18n\.",
     # We don't support updating containers in place. To update containers should be rebuilt.
+    r"^system\.nixos-init\.",
     r"^system\.activatable$",
-    r"^system\.activatableSystemBuilderCommands$",
     r"^system\.activationScripts$",
     r"^system\.build\.separateActivationScript$",
-    r"^system\.dryActivationScript$",
     r"^system\.userActivationScripts$",
     r"^system\.switch\.",
     r"^system\.tools\.nixos-build-vms\.enable$",
@@ -147,14 +145,11 @@ options_filter_out = [
     r"^system\.tools\.nixos-install\.enable$",
     r"^system\.tools\.nixos-option\.enable$",
     r"^system\.tools\.nixos-rebuild\.enable$",
+    r"^system\.tools\.nixos-rebuild\.enableRun0Elevation$",
     r"^system\.tools\.nixos-version\.enable$",
-    r"^system\.nixos-generate-config\.",
     r"^system\.preSwitchChecks$",
-    r"^system\.preSwitchChecksScript$",
     r"^system\.autoUpgrade\.",
-    r"^system\.rebuild\.",
     r"^specialisation(\..*$|$)",
-    r"^isSpecialisation$",
     # Depends on services (systemd). Not really usable, docker and ms devcontainers will typically bypass PAM.
     r"^users\.ldap\.",
     r"^users\.mysql\.",
@@ -168,6 +163,7 @@ options_filter_out = [
     r"^users\.(users|extraUsers)\.<name>\.cryptHomeLuks$",
     # Not usable (PAM bypass).
     r"^users\.(users|extraUsers)\.<name>\.(linger|expires|pamMount|packages)$",
+    r"^users\.manageLingering$",
     r"^users\.motd$",
     r"^users\.motdFile$",
     # Not reliable, we can't tell OCI runtime to set env vars depending on the user id we use to spawn tasks.
@@ -176,7 +172,6 @@ options_filter_out = [
     r"^environment\.profileRelativeSessionVariables$",
     r"^programs\.rust-motd\.",
     r"^users\.allowNoPasswordLogin$",
-    r"^krb5\.",
     # Containers are immutable (always false).
     r"^users\.mutableUsers$",
     # Set by host, not us.
@@ -189,20 +184,23 @@ options_filter_out = [
     r"^environment\.budgie\.",
     r"^environment\.cinnamon\.",
     r"^environment\.cosmic\.",
-    r"^environment\.deepin\.",
     r"^environment\.gnome\.",
     r"^environment\.lxqt\.",
     r"^environment\.mate\.",
     r"^environment\.pantheon\.",
     r"^environment\.plasma(5|6)\.",
     r"^environment\.xfce\.",
+    r"^environment\.enlightenment\.",
     # Unsupported GUI programs, wayland compositors, etc.
     r"^programs\.amnezia-vpn\.",
-    r"^programs\.cardboard\.",
     r"^programs\.chromium",
+    r"^programs\.google-chrome\.",
     r"^programs\.captive-browser\.",
     r"^programs\.firefox",
     r"^programs\.dwl\.",
+    r"^programs\.dms-shell\.",
+    r"^programs\.pinnacle\.",
+    r"^programs\.mango\.",
     r"^programs\.hyprland\.",
     r"^programs\.iio-hyprland\.",
     r"^programs\.hyprlock\.",
@@ -210,13 +208,11 @@ options_filter_out = [
     r"^programs\.i3lock\.",
     r"^programs\.labwc\.",
     r"^programs\.ladybird\.",
-    r"^programs\.regreet\.",
-    r"^programs\.river\.",
+    r"^programs\.river-classic\.",
     r"^programs\.sway\.",
     r"^programs\.steam\.",
     r"^programs\.waybar\.",
     r"^programs\.wayfire\.",
-    r"^programs\.way-cooler$",
     r"^programs\.niri\.",
     r"^programs\.wayland\.miracle-wm\.",
     r"^programs\.zoom-us\.",
@@ -229,23 +225,21 @@ options_filter_out = [
     r"^programs\.kde-pim\.",
     r"^programs\.kdeconnect\.",
     r"^programs\.gnome-disks\.",
-    r"^programs\.gnome-documents$",
     r"^programs\.gnome-terminal\.",
     r"^programs\.ghidra\.",
     r"^programs\.foot\.",
     r"^programs\.alvr\.",
+    r"^programs\.moonlight-qt\.",
     r"^programs\._1password-gui\.",
     r"^programs\._1password\.",
     r"^programs\.wireshark\.",
     r"^programs\.streamdeck-ui\.",
     r"^programs\.obs-studio\.",
-    r"^programs\.pantheon-tweaks$",
     r"^programs\.evolution\.",
     r"^programs\.evince\.",
     r"^programs\.gpu-screen-recorder\.",
     r"^programs\.geary\.",
     r"^programs\.gphoto2\.",
-    r"^programs\.ibus\.",  # managed by host
     r"^programs\.gpaste\.",
     r"^programs\.winbox\.",
     r"^programs\.miriway\.",
@@ -267,8 +261,16 @@ options_filter_out = [
     r"^programs\.qdmr\.",
     r"^programs\.xastir\.",
     r"^programs\.system-config-printer\.",  # graphical stuff for cups
-    r"^programs\.unity3d\.",
     r"^programs\.turbovnc\.",
+    r"^programs\.vscode\.",
+    r"^programs\.wayvnc\.",
+    r"^programs\.xscreensaver\.",
+    r"^programs\.throne\.",
+    r"^programs\.noctalia\.",
+    r"^programs\.umbriel\.",
+    r"^programs\.vellum\.",
+    r"^programs\.passless\.",
+    r"^programs\.ioquake3\.",
     # Could be supported (without binfmt ofc).
     r"^programs\.appimage\.",
     # Requires services (systemd)
@@ -282,41 +284,32 @@ options_filter_out = [
     r"^programs\.msmtp\.",
     r"^programs\.uwsm\.",  # integration of wayland compositors with systemd
     r"^programs\.ausweisapp\.",
+    r"^programs\.direnv\.angrr\.",
     r"^programs\.mosh\.",  # mobile shell. probably could without services, but unlikely anyone wants this
     # vscode will typically forward gpg from the host. We need client, so we keep programs.gnupg.package.
     r"^programs\.gnupg\.agent\.",
     r"^programs\.gnupg\.dirmngr\.",
     # Typically not usable from container (requires special capabilities).
     r"^programs\.firejail\.",
+    r"^programs\.jai-jail\.",
     r"^programs\.openvpn3\.",
     r"^programs\.proxychains\.",
     r"^programs\.appgate-sdp\.",
     # What tf even is that?
     r"^programs\.clash-verge\.",
     r"^programs\.tsmClient\.",
-    r"^programs\.goldwarden\.",
     r"^programs\.hamster\.",
     r"^programs\.cdemu\.",
     r"^programs\.envision\.",
-    r"^programs\.nekoray\.",
-    r"^programs\.file-roller\.",
     r"^programs\.flexoptix-app\.",
     r"^programs\.haguichi\.",
     r"^programs\.joycond-cemuhook\.",
     r"^programs\.mepo\.",
     r"^programs\.mininet\.",
     r"^programs\.minipro\.",
-    r"^programs\.spacefm\.",
-    r"^programs\.oblogout$",
-    r"^programs\.pqos-wrapper\.",
-    r"^programs\.thefuck$",
-    r"^programs\.tilp2$",
-    r"^programs\.yabar$",
-    r"^programs\.x2goserver$",
-    r"^stubby\.",
     r"^programs\.rush\.",  # Restricted User Shell, unlikely anyone wants this in container
-    r"^oci\.",
-    r"^dysnomia$",
+    r"^programs\.nxdumpclient\.",
+    r"^programs\.nixbit\.",
     # Some nix-related tools, could be supported if we support temporary installation of temporary programs in Nix container.
     r"^programs\.nix-index\.",  # good for integration with command-not-found
     r"^programs\.nh\.",  # some nix cli helper
@@ -334,7 +327,6 @@ options_filter_out = [
     r"^programs\.yazi\.",  # some tui file manager
     r"^programs\.vivid\.",  # LS_COLORS configuration
     r"^programs\.skim\.",  # fuzzy finder
-    r"^programs\.adb\.",  # Android Debug Bridge
     r"^programs\.arp-scan\.",
     r"^programs\.autoenv\.",
     r"^programs\.autojump\.",  # another smart cd, seems like zoxide?
@@ -345,6 +337,11 @@ options_filter_out = [
     r"^programs\.sysdig\.",
     r"^programs\.systemtap\.",
     r"^programs\.sharing\.",
+    r"^programs\.atuin\.",  # looks cool, probably could be made working, but requires a bit different approach to get daemon running than standard NixOS
+    r"^programs\.comma\.",  # some plugin? for command-not-found
+    r"^programs\.tack\.",
+    r"^programs\.dsearch\.",
+    r"^programs\.ente-auth\.",
     # Some network diagnostic tools we may want to support. Shouldn't require much, except for setuid/setcap.
     r"^programs\.cnping\.",
     r"^programs\.dublin-traceroute\.",
@@ -363,22 +360,23 @@ options_filter_out = [
     r"^programs\.trippy\.",
     r"^programs\.wavemon\.",
     r"^programs\.zmap\.",
+    r"^programs\.whois\.",
     # TODO: basic stuff, we do want these
+    r"^programs\.nushell\.",
     r"^programs\.bash\.vteIntegration$",
     r"^programs\.zsh\.vteIntegration$",
-    r"^programs\.man\.",
+    r"^programs\.zsh\.package$",
+    r"^security\.shadow\.su\.package$",
     r"^programs\.fuse\.",
-    r"^programs\.info\.",  # removed from latest?
     r"^programs\.gnupg\.package$",
     r"^documentation\.man\.mandoc\.",
     r"^documentation\.nixos\.",
-    # Not usable without daemon
+    # Daemon is not supported (nix can work without one, but even that isn't fully supported).
+    r"^nix\.daemon\.",
+    r"^nix\.daemon(User|Group)$",
     r"^nix\.daemonCPUSchedPolicy$",
-    r"^nix\.daemonIONiceLevel$",
     r"^nix\.daemonIOSchedClass$",
     r"^nix\.daemonIOSchedPriority$",
-    r"^nix\.daemonNiceLevel$",
-    r"^nix\.envVars$",
     # Maybe possible without daemon but not really needed, rebuilding container clears everything.
     r"^nix\.gc\.",
     r"^nix\.optimise\.",
@@ -387,12 +385,6 @@ options_filter_out = [
     # Not usable without working nix.
     r"^environment\.profiles$",
     r"^environment\.profileRelativeEnvVars$",
-    # Not configurable by us. Depending on host config may be completely writable, or not, e.g. on standard
-    # setup, nix store will be part of container and will be writable. When using nix-snapshotter, select nix store
-    # paths will be bind-mounted to host and will be readable, but /nix/store itself stays writable allowing for
-    # installation of additional stuff. If user uses -v /nix/store:/nix/store will typically be readonly
-    # (even on rw bind, store is typically ro and writable only by the daemon), not allowing installation of anything.
-    r"^nix\.readOnlyStore$",
     # TODO: unify users config interface between NixOS and nix-devcontainer where possible.
     r"^users\.enforceIdUniqueness$",
     r"^users\.extraGroups(\..*$|$)",
@@ -405,32 +397,28 @@ options_filter_out = [
     r"^environment\.checkConfigurationOptions$",
     r"^environment\.enableDebugInfo$",
     r"^environment\.freetds$",
-    r"^environment\.noXlibs$",
     r"^environment\.memoryAllocator\.provider$",
-    r"^environment\.blcr\.enable$",
     r"^environment\.stub-ld\.enable$",
-    r"^environment\.usrbinenv$",
     r"^environment\.wordlist\.",
+    r"^environment\.corePackages$",
+    r"^environment\.debuginfodServers$",
     r"^image\.modules$",
-    r"^minifyStaticFiles\.",
-    r"^nesting\.",
-    r"^jobs$",
     r"^system\.build\.images$",
+    r"^system\.build\.noFacter$",
     r"^system\.checks$",
     r"^system\.copySystemConfiguration$",
-    r"^system\.defaultChannel$",
-    r"^system\.disableInstallerTools$",
     r"^system\.extraDependencies$",
     r"^system\.forbiddenDependenciesRegex(es$|$)",
-    r"^system\.fsPackages$",
     r"^system\.includeBuildDependencies$",
-    r"^system\.modulesTree$",
     r"^system\.name$",
-    r"^system\.systemBuilderArgs$",
+    r"^programs\.compsize\.",  # tool for btrfs
+    r"^programs\.btrfs-heatmap\.",
     # IIRC, on NixOS this was implemented by bind-mounting at runtime. Could be done in containers
     # but needs to be done statically at image level. Probably not compatible with nix-snapshotter.
     r"^system\.replaceDependencies\.",
-    r"^system\.replaceRuntimeDependencies$",
+    # 3rd party variant of nix, interestingly has some support in nixos
+    # https://lix.systems/
+    r"^lix\.",
 ]
 options_filter_out_compiled = [re.compile(r) for r in options_filter_out]
 
@@ -598,6 +586,12 @@ def main():
             compare_args["expected_nixos_type"] = "list of string"
         elif k == "users.users.<name>.group":
             compare_args["expected_nixos_type"] = "string"
+            compare_args["ignore_default"] = True
+        elif k == "security.enableWrappers":
+            compare_args["expected_nixos_description_md5"] = (
+                "13bf7056ec7203eec2f8d4d89fbb45da"
+            )
+        elif k == "users.defaultUserShell":
             compare_args["ignore_default"] = True
 
         diff = options_compare(k, opt_devcontainer, opt_nixos, **compare_args)

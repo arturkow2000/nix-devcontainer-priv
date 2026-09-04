@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -25,7 +25,7 @@ in
       default = null;
       defaultText = "if (using nixpkgsFlake.lib.nixosSystem) then self.outPath else null";
 
-      example = ''builtins.fetchTarball { name = "source"; sha256 = "${lib.fakeHash}"; url = "https://github.com/nixos/nixpkgs/archive/somecommit.tar.gz"; }'';
+      example = ''fetchTarball { name = "source"; sha256 = "${lib.fakeHash}"; url = "https://github.com/nixos/nixpkgs/archive/somecommit.tar.gz"; }'';
 
       description = ''
         The path to the nixpkgs sources used to build the system. This is automatically set up to be
@@ -34,7 +34,7 @@ in
 
         This can also be optionally set if the NixOS system is not built with a flake but still uses
         pinned sources: set this to the store path for the nixpkgs sources used to build the system,
-        as may be obtained by `builtins.fetchTarball`, for example.
+        as may be obtained by `fetchTarball`, for example.
 
         Note: the name of the store path must be "source" due to
         <https://github.com/NixOS/nix/issues/7075>.

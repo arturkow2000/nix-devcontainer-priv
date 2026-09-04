@@ -57,7 +57,7 @@ in
         '';
       };
 
-      man.generateCaches = mkOption {
+      man.cache.enable = mkOption {
         type = types.bool;
         default = false;
         description = ''

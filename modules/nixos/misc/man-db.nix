@@ -1,7 +1,7 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
-# by util/vendor-nixos-modules.py. If modification is required, remember to remove
-# this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
-# will be overridden on next vendoring.
+# Based on nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
+# Changes:
+# - Removed generateAtRuntime option (not supported in containers).
+# - Removed dependency on systemd modules.
 {
   config,
   pkgs,
@@ -11,13 +11,14 @@
 
 let
   cfg = config.documentation.man.man-db;
+  cfgm = config.documentation.man;
 in
 
 {
   options = {
     documentation.man.man-db = {
       enable = lib.mkEnableOption "man-db as the default man page viewer" // {
-        default = config.documentation.man.enable;
+        default = cfgm.enable;
         defaultText = lib.literalExpression "config.documentation.man.enable";
         example = false;
       };
@@ -43,7 +44,7 @@ in
         };
         defaultText = lib.literalMD "all man pages in {option}`config.environment.systemPackages`";
         description = ''
-          The manual pages to generate caches for if {option}`documentation.man.generateCaches`
+          The manual pages to generate caches for if {option}`documentation.man.cache.enable`
           is enabled. Must be a path to a directory with man pages under
           `/share/man`; see the source for an example.
           Advanced users can make this a content-addressed derivation to save a few rebuilds.
@@ -69,40 +70,43 @@ in
     )
   ];
 
-  config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ cfg.package ];
-    environment.etc."man_db.conf".text =
-      let
-        # We unfortunately can’t use the customized `cfg.package` when
-        # cross‐compiling. Instead we detect that situation and work
-        # around it by using the vanilla one, like the OpenSSH module.
-        buildPackage =
-          if pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform then
-            cfg.package
-          else
-            pkgs.buildPackages.man-db;
+  config = lib.mkIf cfg.enable (
+    lib.mkMerge [
+      {
+        environment.systemPackages = [ cfg.package ];
+        environment.etc."man_db.conf".text =
+          let
+            # We unfortunately can’t use the customized `cfg.package` when
+            # cross‐compiling. Instead we detect that situation and work
+            # around it by using the vanilla one, like the OpenSSH module.
+            buildPackage =
+              if pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform then
+                cfg.package
+              else
+                pkgs.buildPackages.man-db;
 
-        manualCache =
-          pkgs.runCommand "man-cache"
-            {
-              nativeBuildInputs = [ buildPackage ];
-            }
-            ''
-              echo "MANDB_MAP ${cfg.manualPages}/share/man $out" > man.conf
-              mandb -C man.conf -psc >/dev/null 2>&1
-            '';
-      in
-      ''
-        # Manual pages paths for NixOS
-        MANPATH_MAP /run/current-system/sw/bin /run/current-system/sw/share/man
-        MANPATH_MAP /run/wrappers/bin          /run/current-system/sw/share/man
+            manualCache =
+              pkgs.runCommand "man-cache"
+                {
+                  nativeBuildInputs = [ buildPackage ];
+                  preferLocalBuild = true;
+                }
+                ''
+                  echo "MANDB_MAP ${cfg.manualPages}/share/man $out" > man.conf
+                  mandb -C man.conf -pscq
+                '';
+          in
+          ''
+            # Manual pages paths for NixOS
+            MANPATH_MAP /run/current-system/sw/bin /run/current-system/sw/share/man
+            MANPATH_MAP /run/wrappers/bin          /run/current-system/sw/share/man
 
-        ${lib.optionalString config.documentation.man.generateCaches ''
-          # Generated manual pages cache for NixOS (immutable)
-          MANDB_MAP /run/current-system/sw/share/man ${manualCache}
-        ''}
-        # Manual pages caches for NixOS
-        MANDB_MAP /run/current-system/sw/share/man /var/cache/man/nixos
-      '';
-  };
+            ${lib.optionalString cfgm.cache.enable ''
+              # Manual pages caches for NixOS
+              MANDB_MAP /run/current-system/sw/share/man ${manualCache}
+            ''}
+          '';
+      }
+    ]
+  );
 }

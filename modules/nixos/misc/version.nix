@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -18,7 +18,6 @@ let
     concatStringsSep
     mapAttrsToList
     toLower
-    optionalString
     literalExpression
     match
     mkRenamedOptionModule
@@ -32,17 +31,18 @@ let
   escapeIfNecessary = s: if needsEscaping s then s else ''"${lib.escape [ "$" "\"" "\\" "`" ] s}"'';
   attrsToText =
     attrs:
-    concatStringsSep "\n" (mapAttrsToList (n: v: ''${n}=${escapeIfNecessary (toString v)}'') attrs)
+    concatStringsSep "\n" (mapAttrsToList (n: v: "${n}=${escapeIfNecessary (toString v)}") attrs)
     + "\n";
 
   osReleaseContents =
     let
       isNixos = cfg.distroId == "nixos";
+      optionalAttr = cond: attr: if cond then attr else null;
     in
     {
       NAME = "${cfg.distroName}";
       ID = "${cfg.distroId}";
-      ID_LIKE = optionalString (!isNixos) "nixos";
+      ${optionalAttr (!isNixos) "ID_LIKE"} = "nixos";
       VENDOR_NAME = cfg.vendorName;
       VERSION = "${cfg.release} (${cfg.codeName})";
       VERSION_CODENAME = toLower cfg.codeName;
@@ -51,16 +51,16 @@ let
       PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
       CPE_NAME = "cpe:/o:${cfg.vendorId}:${cfg.distroId}:${cfg.release}";
       LOGO = "nix-snowflake";
-      HOME_URL = optionalString isNixos "https://nixos.org/";
-      VENDOR_URL = optionalString isNixos "https://nixos.org/";
-      DOCUMENTATION_URL = optionalString isNixos "https://nixos.org/learn.html";
-      SUPPORT_URL = optionalString isNixos "https://nixos.org/community.html";
-      BUG_REPORT_URL = optionalString isNixos "https://github.com/NixOS/nixpkgs/issues";
-      ANSI_COLOR = optionalString isNixos "0;38;2;126;186;228";
-      IMAGE_ID = optionalString (config.system.image.id != null) config.system.image.id;
-      IMAGE_VERSION = optionalString (config.system.image.version != null) config.system.image.version;
-      VARIANT = optionalString (cfg.variantName != null) cfg.variantName;
-      VARIANT_ID = optionalString (cfg.variant_id != null) cfg.variant_id;
+      ${optionalAttr isNixos "HOME_URL"} = "https://nixos.org/";
+      ${optionalAttr isNixos "VENDOR_URL"} = "https://nixos.org/";
+      ${optionalAttr isNixos "DOCUMENTATION_URL"} = "https://nixos.org/learn.html";
+      ${optionalAttr isNixos "SUPPORT_URL"} = "https://nixos.org/community.html";
+      ${optionalAttr isNixos "BUG_REPORT_URL"} = "https://github.com/NixOS/nixpkgs/issues";
+      ${optionalAttr isNixos "ANSI_COLOR"} = "0;38;2;126;186;228";
+      ${optionalAttr (config.system.image.id != null) "IMAGE_ID"} = config.system.image.id;
+      ${optionalAttr (config.system.image.version != null) "IMAGE_VERSION"} = config.system.image.version;
+      ${optionalAttr (cfg.variantName != null) "VARIANT"} = cfg.variantName;
+      ${optionalAttr (cfg.variant_id != null) "VARIANT_ID"} = cfg.variant_id;
       DEFAULT_HOSTNAME = config.system.nixos.distroId;
     }
     // cfg.extraOSReleaseArgs;
@@ -255,6 +255,30 @@ in
 
         Do **not** change this value unless you have manually inspected all the changes it would
         make to your configuration, and migrated your data accordingly.
+      '';
+    };
+
+    moduleStateRevisions = mkOption {
+      type =
+        let
+          baseType = types.attrsOf types.ints.unsigned;
+          isStateRevisionOption = x: lib.isOption x && x ? migrations;
+        in
+        types.addCheck baseType (
+          attrs:
+          builtins.all (
+            attrPath: isStateRevisionOption (lib.attrByPath (lib.splitString "." attrPath) null options)
+          ) (builtins.attrNames attrs)
+        )
+        // {
+          description = "${baseType.description}, in which every attribute name is the path to an option created with mkStateRevisionOption";
+        };
+      default = { };
+      internal = true;
+      description = ''
+        NixOS modules should set attributes on this option. Users should leave
+        it alone. Future tooling may use it to determine the consequences of
+        updating {option}`system.stateVersion`.
       '';
     };
 

@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -19,7 +19,7 @@ let
       env = pkgs.buildEnv {
         name = "zsh-${name}-env";
         paths = cfg.customPkgs;
-        pathsToLink = "/share/zsh/${dir}";
+        pathsToLink = [ "/share/zsh/${dir}" ];
       };
     in
     {
@@ -121,7 +121,7 @@ in
         default = "";
         description = ''
           Shell commands executed before the `oh-my-zsh` is loaded.
-          For example, to disable async git prompt write `zstyle ':omz:alpha:lib:git' async-prompt no` (more information https://github.com/ohmyzsh/ohmyzsh?tab=readme-ov-file#async-git-prompt)
+          For example, to disable async git prompt write `zstyle ':omz:alpha:lib:git' async-prompt no` (more information <https://github.com/ohmyzsh/ohmyzsh?tab=readme-ov-file#async-git-prompt>)
         '';
       };
     };

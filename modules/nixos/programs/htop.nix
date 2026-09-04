@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -16,13 +16,13 @@ let
   fmt =
     value:
     if builtins.isList value then
-      builtins.concatStringsSep " " (builtins.map fmt value)
+      builtins.concatStringsSep " " (map fmt value)
     else if builtins.isString value then
       value
     else if builtins.isBool value then
       if value then "1" else "0"
     else if builtins.isInt value then
-      builtins.toString value
+      toString value
     else
       throw "Unrecognized type ${builtins.typeOf value} in htop settings";
 
@@ -67,14 +67,13 @@ in
       cfg.package
     ];
 
-    environment.etc."htoprc".text =
-      ''
-        # Global htop configuration
-        # To change set: programs.htop.settings.KEY = VALUE;
-      ''
-      + builtins.concatStringsSep "\n" (
-        lib.mapAttrsToList (key: value: "${key}=${fmt value}") cfg.settings
-      );
+    environment.etc."htoprc".text = ''
+      # Global htop configuration
+      # To change set: programs.htop.settings.KEY = VALUE;
+    ''
+    + builtins.concatStringsSep "\n" (
+      lib.mapAttrsToList (key: value: "${key}=${fmt value}") cfg.settings
+    );
   };
 
 }

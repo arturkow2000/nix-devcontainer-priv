@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -88,6 +88,20 @@ in
 
         enablePureSSHTransfer = lib.mkEnableOption "Enable pure SSH transfer in server side by adding git-lfs-transfer to environment.systemPackages";
       };
+
+      attributes = lib.mkOption {
+        type = lib.types.lines;
+        default = "";
+        example = "*.pdf diff=pdf";
+        description = ''
+          Assign git attributes to files (one pattern per line):
+
+              PATTERN1 ATTR1 ATTR2 ...
+
+          Blank lines and lines beginning with # are ignored. See
+          {manpage}`gitattributes(5)` for more information.
+        '';
+      };
     };
   };
 
@@ -96,6 +110,10 @@ in
       environment.systemPackages = [ cfg.package ];
       environment.etc.gitconfig = lib.mkIf (cfg.config != [ ]) {
         text = lib.concatMapStringsSep "\n" lib.generators.toGitINI cfg.config;
+      };
+
+      environment.etc.gitattributes = lib.mkIf (cfg.attributes != "") {
+        text = cfg.attributes + "\n";
       };
     })
     (lib.mkIf (cfg.enable && cfg.lfs.enable) {
@@ -119,5 +137,5 @@ in
     })
   ];
 
-  meta.maintainers = with lib.maintainers; [ figsoda ];
+  meta.maintainers = [ lib.maintainers.mushrowan ];
 }

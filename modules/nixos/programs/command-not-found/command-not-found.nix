@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -37,12 +37,13 @@ in
 
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = false;
+      default = builtins.pathExists config.programs.command-not-found.dbPath;
+      defaultText = lib.literalExpression ''
+        builtins.pathExists config.programs.command-not-found.dbPath
+      '';
       description = ''
         Whether interactive shells should show which Nix package (if
         any) provides a missing command.
-
-        Requires nix-channels to be set and downloaded (sudo nix-channels --update.)
 
         See also nix-index and nix-index-database as an alternative for flakes-based systems.
 
@@ -51,14 +52,20 @@ in
     };
 
     dbPath = lib.mkOption {
-      default = "/nix/var/nix/profiles/per-user/root/channels/nixos/programs.sqlite";
-      description = ''
-        Absolute path to programs.sqlite.
-
-        By default this file will be provided by your channel
-        (nixexprs.tar.xz).
-      '';
       type = lib.types.path;
+      default = pkgs.path + "/programs.sqlite";
+      defaultText = lib.literalExpression ''
+        pkgs.path + "/programs.sqlite"
+      '';
+      description = ''
+        Absolute path to `programs.sqlite`, which contains mappings from binary names to package names.
+
+        If a nixpkgs tarball from https://channels.nixos.org is used as the source of nixpkgs, this file will be provided and this option be set by default.
+
+        To use the stateful `programs.sqlite` database, set this option to
+        `/nix/var/nix/profiles/per-user/root/channels/nixos/programs.sqlite`.
+        If you do so, you can update it with `sudo nix-channels --update`.
+      '';
     };
   };
 
@@ -84,5 +91,4 @@ in
 
     environment.systemPackages = [ commandNotFound ];
   };
-
 }

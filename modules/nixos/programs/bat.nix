@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -9,9 +9,10 @@
   ...
 }:
 let
-  inherit (builtins) isList elem;
+  inherit (builtins) isList;
   inherit (lib)
-    getExe
+    concatMapStrings
+    escapeShellArg
     literalExpression
     maintainers
     mapAttrs'
@@ -20,7 +21,6 @@ let
     mkOption
     mkPackageOption
     nameValuePair
-    optionalString
     types
     isBool
     boolToString
@@ -39,34 +39,7 @@ let
     else if isBool value then
       boolToString value
     else
-      toString value;
-
-  initScript =
-    {
-      program,
-      shell,
-      flags ? [ ],
-    }:
-    if (shell != "fish") then
-      ''
-        eval "$(${getExe program} ${toString flags})"
-      ''
-    else
-      ''
-        ${getExe program} ${toString flags} | source
-      '';
-
-  shellInit =
-    shell:
-    optionalString (elem pkgs.bat-extras.batpipe cfg.extraPackages) (initScript {
-      program = pkgs.bat-extras.batpipe;
-      inherit shell;
-    })
-    + optionalString (elem pkgs.bat-extras.batman cfg.extraPackages) (initScript {
-      program = pkgs.bat-extras.batman;
-      inherit shell;
-      flags = [ "--export-env" ];
-    });
+      escapeShellArg (toString value);
 in
 {
   options.programs.bat = {
@@ -116,17 +89,21 @@ in
       );
     };
 
-    programs = {
-      bash = mkIf (!config.programs.fish.enable) {
-        interactiveShellInit = shellInit "bash";
+    programs =
+      let
+        shellInit = shell: concatMapStrings (pkg: pkg.shellInit shell) cfg.extraPackages;
+      in
+      {
+        bash = mkIf (!config.programs.fish.enable) {
+          interactiveShellInit = shellInit "bash";
+        };
+        fish = mkIf config.programs.fish.enable {
+          interactiveShellInit = shellInit "fish";
+        };
+        zsh = mkIf (!config.programs.fish.enable && config.programs.zsh.enable) {
+          interactiveShellInit = shellInit "zsh";
+        };
       };
-      fish = mkIf config.programs.fish.enable {
-        interactiveShellInit = shellInit "fish";
-      };
-      zsh = mkIf (!config.programs.fish.enable && config.programs.zsh.enable) {
-        interactiveShellInit = shellInit "zsh";
-      };
-    };
   };
   meta.maintainers = with maintainers; [ sigmasquadron ];
 }

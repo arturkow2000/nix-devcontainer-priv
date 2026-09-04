@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -23,10 +23,13 @@ let
   mergeConfig =
     lhs_: rhs_:
     let
-      lhs = optCall lhs_ { inherit pkgs; };
-      rhs = optCall rhs_ { inherit pkgs; };
+      lhs = optCall lhs_ { inherit lib pkgs; };
+      rhs = optCall rhs_ { inherit lib pkgs; };
     in
     lib.recursiveUpdate lhs rhs
+    // lib.optionalAttrs (lhs ? allowUnfreePackages) {
+      allowUnfreePackages = lhs.allowUnfreePackages ++ (lib.attrByPath [ "allowUnfreePackages" ] [ ] rhs);
+    }
     // lib.optionalAttrs (lhs ? packageOverrides) {
       packageOverrides =
         pkgs:
@@ -126,7 +129,7 @@ in
     pkgs = lib.mkOption {
       defaultText = lib.literalExpression ''
         import "''${nixos}/.." {
-          inherit (cfg) config overlays localSystem crossSystem;
+          inherit (config.nixpkgs) config overlays localSystem crossSystem;
         }
       '';
       type = pkgsType;
@@ -209,7 +212,6 @@ in
       # Make sure that the final value has all fields for sake of other modules
       # referring to this. TODO make `lib.systems` itself use the module system.
       apply = lib.systems.elaborate;
-      defaultText = lib.literalExpression ''(import "''${nixos}/../lib").lib.systems.examples.aarch64-multiplatform'';
       description = ''
         Specifies the platform where the NixOS configuration will run.
 
@@ -236,7 +238,7 @@ in
           cfg.hostPlatform # make identical, so that `==` equality works; see https://github.com/NixOS/nixpkgs/issues/278001
         else
           elaborated;
-      defaultText = lib.literalExpression ''config.nixpkgs.hostPlatform'';
+      defaultText = lib.literalExpression "config.nixpkgs.hostPlatform";
       description = ''
         Specifies the platform on which NixOS should be built.
         By default, NixOS is built on the system where it runs, but you can
@@ -260,7 +262,7 @@ in
       # Make sure that the final value has all fields for sake of other modules
       # referring to this. TODO make `lib.systems` itself use the module system.
       apply = lib.systems.elaborate;
-      defaultText = lib.literalExpression ''(import "''${nixos}/../lib").lib.systems.examples.aarch64-multiplatform'';
+      defaultText = lib.literalExpression "config.nixpkgs.system";
       description = ''
         Systems with a recently generated `hardware-configuration.nix`
         do not need to specify this option, unless cross-compiling, in which case
@@ -363,7 +365,7 @@ in
         # which is somewhat costly for Nixpkgs. With an explicit priority, we only
         # evaluate the wrapper to find out that the priority is lower, and then we
         # don't need to evaluate `finalPkgs`.
-        lib.mkOverride lib.modules.defaultOverridePriority finalPkgs.__splicedPackages;
+        lib.mkOverride lib.modules.defaultOverridePriority finalPkgs;
     };
 
     assertions =

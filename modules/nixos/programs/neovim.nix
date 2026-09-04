@@ -1,7 +1,9 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
+# Processed by:
+#  - nvim_set_editor_globally
 {
   config,
   lib,
@@ -55,13 +57,13 @@ in
 
     withRuby = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Enable Ruby provider.";
     };
 
     withPython3 = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Enable Python 3 provider.";
     };
 
@@ -77,7 +79,10 @@ in
       example = lib.literalExpression ''
         {
           customRC = '''
-            " here your custom configuration goes!
+            " here your custom VimScript configuration goes!
+          ''';
+          customLuaRC = '''
+            -- here your custom Lua configuration goes!
           ''';
           packages.myVimPackage = with pkgs.vimPlugins; {
             # loaded on launch
@@ -172,12 +177,12 @@ in
       builtins.attrValues (
         builtins.mapAttrs (name: value: {
           name = "xdg/nvim/${name}";
-          value = builtins.removeAttrs (
+          value = removeAttrs (
             value
             // {
               target = "xdg/nvim/${value.target}";
             }
-          ) (lib.optionals (builtins.isNull value.source) [ "source" ]);
+          ) (lib.optionals (isNull value.source) [ "source" ]);
         }) cfg.runtime
       )
     );

@@ -1,7 +1,8 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
-# by util/vendor-nixos-modules.py. If modification is required, remember to remove
-# this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
-# will be overridden on next vendoring.
+# Based on nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
+# Changes:
+# - removed support for Nix daemon (generally requires systemd)
+# - removed systemd dependencies
+# - removed support for build isolation (could be supported, but requires additional work)
 /*
   Manages /etc/nix/nix.conf.
 
@@ -20,54 +21,34 @@
 
 let
   inherit (lib)
-    concatStringsSep
-    boolToString
-    escape
-    filterAttrs
-    floatToString
-    getVersion
-    hasPrefix
-    isBool
-    isDerivation
-    isFloat
-    isInt
-    isList
-    isString
     literalExpression
     mapAttrsToList
     mkAfter
     mkIf
     mkOption
     mkRenamedOptionModuleWith
-    optionalString
     optionals
-    strings
     systems
-    toPretty
     types
-    versionAtLeast
     ;
 
   cfg = config.nix;
 
   nixPackage = cfg.package.out;
 
-  isNixAtLeast = versionAtLeast (getVersion nixPackage);
-
-  defaultSystemFeatures =
-    [
-      "nixos-test"
-      "benchmark"
-      "big-parallel"
-      "kvm"
-    ]
-    ++ optionals (pkgs.stdenv.hostPlatform ? gcc.arch) (
-      # a builder can run code for `gcc.arch` and inferior architectures
-      [ "gccarch-${pkgs.stdenv.hostPlatform.gcc.arch}" ]
-      ++ map (x: "gccarch-${x}") (
-        systems.architectures.inferiors.${pkgs.stdenv.hostPlatform.gcc.arch} or [ ]
-      )
-    );
+  defaultSystemFeatures = [
+    "nixos-test"
+    "benchmark"
+    "big-parallel"
+    "kvm"
+  ]
+  ++ optionals (pkgs.stdenv.hostPlatform ? gcc.arch) (
+    # a builder can run code for `gcc.arch` and inferior architectures
+    [ "gccarch-${pkgs.stdenv.hostPlatform.gcc.arch}" ]
+    ++ map (x: "gccarch-${x}") (
+      systems.architectures.inferiors.${pkgs.stdenv.hostPlatform.gcc.arch} or [ ]
+    )
+  );
 
   legacyConfMappings = {
     useSandbox = "sandbox";
@@ -103,120 +84,80 @@ let
     attrsOf (either confAtom (listOf confAtom));
 
   nixConf =
-    assert isNixAtLeast "2.2";
-    let
-
-      mkValueString =
-        v:
-        if v == null then
-          ""
-        else if isInt v then
-          toString v
-        else if isBool v then
-          boolToString v
-        else if isFloat v then
-          floatToString v
-        else if isList v then
-          toString v
-        else if isDerivation v then
-          toString v
-        else if builtins.isPath v then
-          toString v
-        else if isString v then
-          v
-        else if strings.isConvertibleWithToString v then
-          toString v
-        else
-          abort "The nix conf value: ${toPretty { } v} can not be encoded";
-
-      mkKeyValue = k: v: "${escape [ "=" ] k} = ${mkValueString v}";
-
-      mkKeyValuePairs = attrs: concatStringsSep "\n" (mapAttrsToList mkKeyValue attrs);
-
-      isExtra = key: hasPrefix "extra-" key;
-
-    in
-    pkgs.writeTextFile {
-      name = "nix.conf";
-      # workaround for https://github.com/NixOS/nix/issues/9487
-      # extra-* settings must come after their non-extra counterpart
-      text = ''
-        # WARNING: this file is generated from the nix.* options in
-        # your NixOS configuration, typically
-        # /etc/nixos/configuration.nix.  Do not edit it!
-        ${mkKeyValuePairs (filterAttrs (key: value: !(isExtra key)) cfg.settings)}
-        ${mkKeyValuePairs (filterAttrs (key: value: isExtra key) cfg.settings)}
-        ${cfg.extraOptions}
-      '';
-      checkPhase = lib.optionalString cfg.checkConfig (
-        if pkgs.stdenv.hostPlatform != pkgs.stdenv.buildPlatform then
-          ''
-            echo "Ignoring validation for cross-compilation"
-          ''
-        else
-          let
-            showCommand = if isNixAtLeast "2.20pre" then "config show" else "show-config";
-          in
-          ''
-            echo "Validating generated nix.conf"
-            ln -s $out ./nix.conf
-            set -e
-            set +o pipefail
-            NIX_CONF_DIR=$PWD \
-              ${cfg.package}/bin/nix ${showCommand} ${optionalString (isNixAtLeast "2.3pre") "--no-net"} \
-                ${optionalString (isNixAtLeast "2.4pre") "--option experimental-features nix-command"} \
-              |& sed -e 's/^warning:/error:/' \
-              | (! grep '${if cfg.checkAllErrors then "^error:" else "^error: unknown setting"}')
-            set -o pipefail
-          ''
-      );
-    };
+    (pkgs.formats.nixConf {
+      inherit (cfg)
+        package
+        checkAllErrors
+        checkConfig
+        extraOptions
+        ;
+      inherit (nixPackage) version;
+    }).generate
+      "nix.conf"
+      cfg.settings;
 
 in
 {
-  imports =
-    [
-      (mkRenamedOptionModuleWith {
-        sinceRelease = 2003;
-        from = [
-          "nix"
-          "useChroot"
-        ];
-        to = [
-          "nix"
-          "useSandbox"
-        ];
-      })
-      (mkRenamedOptionModuleWith {
-        sinceRelease = 2003;
-        from = [
-          "nix"
-          "chrootDirs"
-        ];
-        to = [
-          "nix"
-          "sandboxPaths"
-        ];
-      })
-    ]
-    ++ mapAttrsToList (
-      oldConf: newConf:
-      mkRenamedOptionModuleWith {
-        sinceRelease = 2205;
-        from = [
-          "nix"
-          oldConf
-        ];
-        to = [
-          "nix"
-          "settings"
-          newConf
-        ];
-      }
-    ) legacyConfMappings;
+  imports = [
+    (mkRenamedOptionModuleWith {
+      sinceRelease = 2003;
+      from = [
+        "nix"
+        "useChroot"
+      ];
+      to = [
+        "nix"
+        "useSandbox"
+      ];
+    })
+    (mkRenamedOptionModuleWith {
+      sinceRelease = 2003;
+      from = [
+        "nix"
+        "chrootDirs"
+      ];
+      to = [
+        "nix"
+        "sandboxPaths"
+      ];
+    })
+  ]
+  ++ mapAttrsToList (
+    oldConf: newConf:
+    mkRenamedOptionModuleWith {
+      sinceRelease = 2205;
+      from = [
+        "nix"
+        oldConf
+      ];
+      to = [
+        "nix"
+        "settings"
+        newConf
+      ];
+    }
+  ) legacyConfMappings;
 
   options = {
     nix = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether to enable Nix.
+          Disabling Nix makes the system hard to modify and the Nix programs and configuration will not be made available by NixOS itself.
+        '';
+      };
+
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.nix;
+        defaultText = lib.literalExpression "pkgs.nix";
+        description = ''
+          This option specifies the Nix package instance to use throughout the system.
+        '';
+      };
+
       checkConfig = mkOption {
         type = types.bool;
         default = true;
@@ -284,6 +225,16 @@ in
                 available CPU cores in the system. Some builds may become
                 non-deterministic with this option; use with care! Packages will
                 only be affected if enableParallelBuilding is set for them.
+              '';
+            };
+
+            experimental-features = mkOption {
+              type = with types; listOf str;
+              default = [ ];
+              example = [ "ca-derivations" ];
+              description = ''
+                List of experimental features to enable in Nix.
+                See <https://nixos.org/manual/nix/stable/development/experimental-features> for available features.
               '';
             };
 
@@ -448,6 +399,12 @@ in
   };
 
   config = mkIf cfg.enable {
+    environment.systemPackages = [
+      nixPackage
+      pkgs.nix-info
+    ]
+    ++ lib.optional config.programs.bash.completion.enable pkgs.nix-bash-completions;
+
     environment.etc."nix/nix.conf".source = nixConf;
     nix.settings = {
       trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
@@ -455,5 +412,8 @@ in
       substituters = mkAfter [ "https://cache.nixos.org/" ];
       system-features = defaultSystemFeatures;
     };
+
+    # Legacy configuration conversion.
+    nix.settings.sandbox-fallback = false;
   };
 }

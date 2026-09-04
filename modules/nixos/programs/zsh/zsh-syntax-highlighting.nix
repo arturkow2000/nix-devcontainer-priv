@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -41,7 +41,7 @@ in
 
         # https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/docs/highlighters.md
         type = lib.types.listOf (
-          lib.types.enum ([
+          lib.types.enum [
             "main"
             "brackets"
             "pattern"
@@ -49,7 +49,7 @@ in
             "regexp"
             "root"
             "line"
-          ])
+          ]
         );
 
         description = ''

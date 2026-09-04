@@ -1,4 +1,4 @@
-# Vendored from nixpkgs rev ff8d74d0097bbdcf430e5e866c0c1d795f138ab4
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
 # by util/vendor-nixos-modules.py. If modification is required, remember to remove
 # this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
 # will be overridden on next vendoring.
@@ -101,6 +101,30 @@
         '';
         default = [ ];
       };
+
+      subuid = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        description = ''
+          List of subuid entries to configure in {file}`/etc/nsswitch.conf`.
+
+          Note that "files" is always prepended.
+
+          This option only takes effect if nscd is enabled.
+        '';
+        default = [ ];
+      };
+
+      subgid = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        description = ''
+          List of subgid entries to configure in {file}`/etc/nsswitch.conf`.
+
+          Note that "files" is always prepended.
+
+          This option only takes effect if nscd is enabled.
+        '';
+        default = [ ];
+      };
     };
   };
 
@@ -137,6 +161,9 @@
       services:  ${lib.concatStringsSep " " config.system.nssDatabases.services}
       protocols: files
       rpc:       files
+
+      subuid:    ${lib.concatStringsSep " " config.system.nssDatabases.subuid}
+      subgid:    ${lib.concatStringsSep " " config.system.nssDatabases.subgid}
     '';
 
     system.nssDatabases = {
@@ -149,6 +176,8 @@
         (lib.mkOrder 1499 [ "dns" ])
       ];
       services = lib.mkBefore [ "files" ];
+      subuid = lib.mkBefore [ "files" ];
+      subgid = lib.mkBefore [ "files" ];
     };
   };
 }

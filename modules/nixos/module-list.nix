@@ -37,7 +37,6 @@
   ./system/etc.nix
   ./system/nix2container.nix
   ./system/nix-snapshotter.nix
-  ./system/nix.nix
   ./programs/shadow.nix
   ./security/pam.nix
   ./security/sudo.nix
