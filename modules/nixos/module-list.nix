@@ -11,6 +11,7 @@
   ./config/terminfo.nix
   ./config/unix-odbc-drivers.nix
   ./config/users-groups.nix
+  ./config/vte.nix
   ./misc/assertions.nix
   ./misc/documentation.nix
   ./misc/extra-arguments.nix

@@ -49,6 +49,7 @@ nixos_module_files_to_vendor = [
     "config/nix-remote-build.nix",
     "config/nsswitch.nix",
     "config/unix-odbc-drivers.nix",
+    "config/vte.nix",
     "misc/assertions.nix",
     "misc/ids.nix",
     "misc/label.nix",

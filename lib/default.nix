@@ -14,6 +14,7 @@ let
       defaultShell,
       enabledShells,
       shellTheme,
+      vteIntegration,
       defaultUser,
       copyNixpkgs,
       nixNonRoot,
@@ -70,6 +71,10 @@ let
           starship.enable = true;
         })
         {
+          bash.vteIntegration = lib.mkDefault vteIntegration;
+          zsh.vteIntegration = lib.mkDefault vteIntegration;
+        }
+        {
           # Make default as vscode, intellij, and all dynamically linked non-NixOS binaries need this.
           nix-ld = {
             enable = lib.mkDefault true;
@@ -122,6 +127,7 @@ let
       defaultShell ? "zsh",
       enabledShells ? [ defaultShell ],
       shellTheme ? "devcontainers",
+      vteIntegration ? true,
       defaultUser ? {
         name = "vscode";
         uid = 1000;
@@ -149,6 +155,7 @@ let
                 defaultShell
                 enabledShells
                 shellTheme
+                vteIntegration
                 defaultUser
                 copyNixpkgs
                 nixNonRoot
@@ -162,11 +169,12 @@ let
                 # interested in and update OCI archive metadata. Doing this through
                 # shell doesn't work well with vscode as extensions are started without
                 # using the shell.
-                rest = builtins.removeAttrs opts [
+                rest = removeAttrs opts [
                   "name"
                   "defaultShell"
                   "enabledShells"
                   "shellTheme"
+                  "vteIntegration"
                   "defaultUser"
                   "copyNixpkgs"
                   "nixNonRoot"
@@ -285,7 +293,7 @@ let
             inherit parsedArchToFlake;
           };
         }
-        // (builtins.removeAttrs args [
+        // (removeAttrs args [
           "lib"
           "modules"
         ])

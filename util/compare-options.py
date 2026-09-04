@@ -363,8 +363,6 @@ options_filter_out = [
     r"^programs\.whois\.",
     # TODO: basic stuff, we do want these
     r"^programs\.nushell\.",
-    r"^programs\.bash\.vteIntegration$",
-    r"^programs\.zsh\.vteIntegration$",
     r"^security\.shadow\.su\.package$",
     r"^programs\.fuse\.",
     r"^programs\.gnupg\.package$",
