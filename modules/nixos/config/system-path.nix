@@ -43,6 +43,8 @@ let
         pkgs.util-linux
         pkgs.which
         pkgs.zstd
+        # FIXME: required by zsh
+        pkgs.hostname
       ];
 
   defaultPackageNames = [

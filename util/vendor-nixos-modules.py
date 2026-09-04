@@ -38,6 +38,12 @@ def vim_set_editor_globally(f: str) -> str:
     return f.replace("sessionVariables.EDITOR =", "variables.EDITOR =")
 
 
+def zsh_fixup_shell_path(f: str) -> str:
+    # /run/current-system is invalid in container.
+    # /run/current-system/sw/bin is at /usr/bin
+    return f.replace("/run/current-system/sw/bin/zsh", "/usr/bin/zsh")
+
+
 nixos_module_files_to_vendor = [
     "config/nix-flakes.nix",
     "config/nix-remote-build.nix",
@@ -74,6 +80,8 @@ nixos_module_files_to_vendor = [
     "programs/starship.nix",
     WithProcessors("programs/vim.nix", [vim_set_editor_globally]),
     "programs/xonsh.nix",
+    WithProcessors("programs/zsh/zsh.nix", [zsh_fixup_shell_path]),
+    "programs/zsh/zinputrc",
     "programs/zsh/oh-my-zsh.nix",
     "programs/zsh/zsh-autoenv.nix",
     "programs/zsh/zsh-autosuggestions.nix",

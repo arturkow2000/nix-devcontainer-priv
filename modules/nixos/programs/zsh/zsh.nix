@@ -1,3 +1,9 @@
+# Vendored from nixpkgs rev 24a69cdc73f76df4dde9edabcda6737f55b66627
+# by util/vendor-nixos-modules.py. If modification is required, remember to remove
+# this module from modules_to_vendor list in util/vendor-nixos-modules.py, or changes
+# will be overridden on next vendoring.
+# Processed by:
+#  - zsh_fixup_shell_path
 # This module defines global configuration for the zshell.
 
 {
@@ -57,6 +63,8 @@ in
         '';
         type = lib.types.bool;
       };
+
+      package = lib.mkPackageOption pkgs "zsh" { };
 
       shellAliases = lib.mkOption {
         default = { };
@@ -195,7 +203,7 @@ in
           . ${config.system.build.setEnvironment}
       fi
 
-      HELPDIR="${pkgs.zsh}/share/zsh/$ZSH_VERSION/help"
+      HELPDIR="${cfg.package}/share/zsh/$ZSH_VERSION/help"
 
       # Tell zsh how to find installed completions.
       for p in ''${(z)NIX_PROFILES}; do
@@ -249,10 +257,13 @@ in
         setopt ${builtins.concatStringsSep " " cfg.setOptions}
       ''}
 
+      # Determine current fqdn hostname
+      HOST=$(hostname --fqdn)
+
       # Setup command line history.
       # Don't export these, otherwise other shells (bash) will try to use same HISTFILE.
-      SAVEHIST=${builtins.toString cfg.histSize}
-      HISTSIZE=${builtins.toString cfg.histSize}
+      SAVEHIST=${toString cfg.histSize}
+      HISTSIZE=${toString cfg.histSize}
       HISTFILE=${cfg.histFile}
 
       # Configure sane keyboard defaults.
@@ -301,19 +312,20 @@ in
     # Bug in nix flakes:
     # If we use `.source` here the path is garbage collected also we point to it with a symlink
     # see https://github.com/NixOS/nixpkgs/issues/132732
-    environment.etc.zinputrc.text = builtins.readFile "${pkgs.path}/nixos/modules/programs/zsh/zinputrc";
+    environment.etc.zinputrc.text = builtins.readFile ./zinputrc;
 
     environment.systemPackages = [
-      pkgs.zsh
-    ] ++ lib.optional cfg.enableCompletion pkgs.nix-zsh-completions;
+      cfg.package
+    ]
+    ++ lib.optional cfg.enableCompletion pkgs.nix-zsh-completions;
 
     environment.pathsToLink = lib.optional cfg.enableCompletion "/share/zsh";
 
-    #users.defaultUserShell = lib.mkDefault "/run/current-system/sw/bin/zsh";
+    #users.defaultUserShell = lib.mkDefault "/usr/bin/zsh";
 
     environment.shells = [
-      "/run/current-system/sw/bin/zsh"
-      "${pkgs.zsh}/bin/zsh"
+      "/usr/bin/zsh"
+      "${cfg.package}/bin/zsh"
     ];
 
   };

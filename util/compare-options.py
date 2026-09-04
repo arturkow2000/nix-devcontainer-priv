@@ -365,7 +365,6 @@ options_filter_out = [
     r"^programs\.nushell\.",
     r"^programs\.bash\.vteIntegration$",
     r"^programs\.zsh\.vteIntegration$",
-    r"^programs\.zsh\.package$",
     r"^security\.shadow\.su\.package$",
     r"^programs\.fuse\.",
     r"^programs\.gnupg\.package$",
