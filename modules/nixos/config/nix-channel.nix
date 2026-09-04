@@ -1,3 +1,15 @@
+# Based on nixpkgs 24a69cdc73f76df4dde9edabcda6737f55b66627
+# Changes:
+# - removed dependency on systemd
+# - removed per-user channels (only global config is supported)
+/*
+  Manages the things that are needed for a traditional nix-channel based
+  configuration to work.
+
+  See also
+  - ./nix.nix
+  - ./nix-flakes.nix
+*/
 { config, lib, ... }:
 let
   inherit (lib)
@@ -17,8 +29,6 @@ in
 
             The following files are initialized when enabled:
               - `/nix/var/nix/profiles/per-user/root/channels`
-              - `/root/.nix-channels`
-              - `$HOME/.nix-defexpr/channels` (on login)
 
             Disabling this option will not remove the state files from the system.
           '';

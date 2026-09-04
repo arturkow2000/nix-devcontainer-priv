@@ -593,6 +593,10 @@ def main():
             )
         elif k == "users.defaultUserShell":
             compare_args["ignore_default"] = True
+        elif k == "nix.channel.enable":
+            compare_args["expected_nixos_description_md5"] = (
+                "390f930b0faae467a04155f340ea7ff3"
+            )
 
         diff = options_compare(k, opt_devcontainer, opt_nixos, **compare_args)
         if len(diff) > 0:
