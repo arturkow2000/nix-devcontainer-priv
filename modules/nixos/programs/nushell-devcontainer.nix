@@ -112,6 +112,45 @@ let
       } | load-env
     }]
   '';
+  usingExternalCompleters = config.programs.nushell.completions.useFish;
+  nushellExternalCompleters = pkgs.writeTextDir "share/nushell/vendor/autoload/50-completers.nu" ''
+    ${lib.optionalString config.programs.nushell.completions.useFish ''
+      let fish_completer = {|spans|
+        ${lib.getExe config.programs.fish.package} --command $"complete '--do-complete=($spans | str replace --all "'" "\\'" | str join ' ')'"
+        | from tsv --flexible --noheaders --no-infer
+        | rename value description
+        | update value {|row|
+          let value = $row.value
+          let need_quote = ['\' ',' '[' ']' '(' ')' ' ' '\t' "'" '"' "`"] | any {$in in $value}
+          if ($need_quote and ($value | path exists)) {
+            let expanded_path = if ($value starts-with ~) {$value | path expand --no-symlink} else {$value}
+            $'"($expanded_path | str replace --all "\"" "\\\"")"'
+          } else {$value}
+        }
+      }
+    ''}
+
+    let external_completer = {|spans|
+      let expanded_alias = scope aliases
+      | where name == $spans.0
+      | get -o 0.expansion
+
+      let spans = if $expanded_alias != null {
+        $spans
+        | skip 1
+        | prepend ($expanded_alias | split row ' ' | take 1)
+      } else {
+        $spans
+      }
+
+      match $spans.0 {
+        _ => $fish_completer
+      } | do $in $spans
+    }
+
+    $env.config.completions.external.enable = true
+    $env.config.completions.external.completer = $external_completer
+  '';
 in
 {
   options = {
@@ -121,6 +160,11 @@ in
         type = lib.types.submodule {
           freeformType = lib.types.anything;
         };
+      };
+      completions = {
+        useFish = enabledOption ''
+          Use fish shell as external completer.
+        '';
       };
     };
     programs.direnv = {
@@ -164,6 +208,9 @@ in
     })
     (lib.mkIf (config.programs.direnv.enable && config.programs.direnv.enableNushellIntegration) {
       programs.nushell.autoloads = [ nushellDirenv ];
+    })
+    (lib.mkIf usingExternalCompleters {
+      programs.nushell.autoloads = [ nushellExternalCompleters ];
     })
   ];
 }
