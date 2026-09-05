@@ -67,6 +67,9 @@ let
             source ${pkgs.callPackage ../packages/bash-theme-devcontainers.nix { }}
           '';
         }
+        (lib.mkIf (shellTheme == "devcontainers") {
+          nushell.autoloads = [ (pkgs.callPackage ../packages/nu-theme-devcontainers.nix { }) ];
+        })
         (lib.mkIf (shellTheme == "starship") {
           starship.enable = true;
         })
