@@ -14,28 +14,26 @@ let
       example = false;
     };
   nushellConfig = pkgs.writeTextDir "share/nushell/vendor/autoload/50-nu-config.nu" (
-    (
-      ''
-        use std/config *
-      ''
-      + lib.concatStringsSep "\n" (
-        lib.mapAttrsToListRecursive (
-          path: value:
-          let
-            path' = lib.concatStringsSep "." path;
-            value' =
-              if builtins.typeOf value == "string" then
-                ''"${lib.escapeShellArg value}"''
-              else if builtins.typeOf value == "bool" then
-                if value then "true" else "false"
-              else if builtins.typeOf value == "int" || builtins.typeOf value == "float" then
-                toString value
-              else
-                throw "Unsupported value type ${builtins.typeOf value}";
-          in
-          "$env.config.${path'} = ${value'}"
-        ) config.programs.nushell.settings
-      )
+    ''
+      use std/config *
+    ''
+    + lib.concatStringsSep "\n" (
+      lib.mapAttrsToListRecursive (
+        path: value:
+        let
+          path' = lib.concatStringsSep "." path;
+          value' =
+            if builtins.typeOf value == "string" then
+              ''"${lib.escapeShellArg value}"''
+            else if builtins.typeOf value == "bool" then
+              if value then "true" else "false"
+            else if builtins.typeOf value == "int" || builtins.typeOf value == "float" then
+              toString value
+            else
+              throw "Unsupported value type ${builtins.typeOf value}";
+        in
+        "$env.config.${path'} = ${value'}"
+      ) config.programs.nushell.settings
     )
   );
   # pre-generated using `starship init nu`
