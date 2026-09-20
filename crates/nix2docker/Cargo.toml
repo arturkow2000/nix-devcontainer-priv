@@ -1,0 +1,28 @@
+[package]
+name = "nix2docker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eyre.workspace = true
+snafu.workspace = true
+clap = { workspace = true, features = ["derive"] }
+futures-util.workspace = true
+pin-project.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "fs"] }
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+async-tar.workspace = true
+oci-spec.workspace = true
+prost-types.workspace = true
+prost.workspace = true
+tonic.workspace = true
+containerd-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+heapless.workspace = true
+const_format.workspace = true

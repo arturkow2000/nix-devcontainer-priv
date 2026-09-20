@@ -32,6 +32,7 @@
   ./misc/nixpkgs-flake.nix
   ./misc/passthru.nix
   ./misc/version.nix
+  ./misc/shell-integration.nix
   ./system/build.nix
   ./system/top-level.nix
   ./system/container.nix

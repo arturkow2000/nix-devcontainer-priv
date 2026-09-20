@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["crates/nix2docker"]
+
+[workspace.dependencies]
+eyre = "0.6"
+snafu = "0.9"
+clap = "4"
+pin-project = "1"
+tokio = "1"
+tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-util = "0.7"
+futures-util = { version = "0.3", features = ["sink"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-tar = { version = "0.6", default-features = false, features = [
+    "runtime-tokio",
+] }
+oci-spec = "0.10"
+prost-types = "0.14"
+prost = "0.14"
+tonic = "0.14"
+containerd-client = "0.9"
+serde = "1"
+serde_json = "1"
+chrono = "0.4"
+uuid = "1"
+heapless = "0.9"
+const_format = "0.2"
