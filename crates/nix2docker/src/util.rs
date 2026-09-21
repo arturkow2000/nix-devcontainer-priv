@@ -1,6 +1,5 @@
 use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     pin::{Pin, pin},
     task::{Context, Poll, ready},
 };
@@ -27,13 +26,10 @@ use tokio_stream::{
     wrappers::{ReceiverStream, WatchStream},
 };
 use tokio_util::{io::ReaderStream, sync::PollSender};
-use tonic::{
-    Extensions, Request, Streaming,
-    metadata::{MetadataMap, MetadataValue},
-};
+use tonic::{Extensions, Request, Streaming, metadata::MetadataMap};
 use tracing::field;
 
-const CHUNK_SIZE: usize = 64;
+const CHUNK_SIZE: usize = 4096;
 
 #[derive(Debug, Snafu)]
 pub enum UploadError {
@@ -63,8 +59,8 @@ impl ContainerdStreamingChannel {
     pub async fn new(
         streaming: &mut StreamingClient<tonic::transport::Channel>,
         id: String,
-        meta: BTreeMap<&'static str, String>,
-    ) -> tonic::Result<Self> {
+        meta: MetadataMap,
+    ) -> Result<Self, GrpcError> {
         let (init_tx, init_notify) = watch::channel(false);
         let (stream_tx, rx) = mpsc::channel(1);
         // Do it now so unwrap never fails.
@@ -76,15 +72,16 @@ impl ContainerdStreamingChannel {
             .await
             .unwrap();
         let stream = streaming
-            .stream({
-                let mut req = Request::new(ReceiverStream::new(rx));
-                let md = req.metadata_mut();
-                for (k, v) in meta {
-                    md.insert(k, v.parse().unwrap());
-                }
-                req
-            })
-            .await?
+            .stream(Request::from_parts(
+                meta,
+                Extensions::new(),
+                ReceiverStream::new(rx),
+            ))
+            .await
+            .map_err(|status| GrpcError {
+                request: concatcp!(StreamInit::PACKAGE, ".", StreamInit::NAME),
+                status,
+            })?
             .into_inner();
         Ok(Self {
             init_notify,
@@ -97,7 +94,7 @@ impl ContainerdStreamingChannel {
     /// Wait for channel initialization to complete.
     ///
     /// If stream is dropped before stream has been initialized the future will never complete.
-    pub fn wait_init<'f>(&self) -> impl Future<Output = tonic::Result<()>> + 'f {
+    pub fn wait_init<'f>(&self) -> impl Future<Output = Result<(), GrpcError>> + 'f {
         let mut rx = self.init_notify.clone();
         async move {
             loop {
@@ -105,10 +102,12 @@ impl ContainerdStreamingChannel {
                 if v {
                     return Ok(());
                 }
-                warn!("NOT READY, waiting");
                 if rx.changed().await.is_err() {
                     warn!("stream dropped before initialization complete");
-                    return Err(tonic::Status::cancelled("stream cancelled"));
+                    return Err(GrpcError {
+                        request: concatcp!(StreamInit::PACKAGE, ".", StreamInit::NAME),
+                        status: tonic::Status::cancelled("stream cancelled"),
+                    });
                 }
             }
         }
@@ -123,26 +122,32 @@ impl ContainerdStreamingChannel {
     }
 
     /// Drive the stream to completion
-    pub async fn process(mut self) -> tonic::Result<()> {
+    pub async fn process(mut self) -> Result<(), GrpcError> {
         let mut init_done = false;
+        // Stream dies when all producers go away.
+        drop(self.stream_tx);
         loop {
             match self.stream.message().await {
                 Ok(Some(resp)) => {
-                    warn!("MESSAGE");
                     if resp.type_url == "google.protobuf.Empty" && !init_done {
-                        warn!("INIT!!");
                         self.init_tx.send(true).unwrap();
                         init_done = true;
                     }
                 }
                 Ok(None) => {
                     if !init_done {
-                        return Err(tonic::Status::cancelled("stream closed"));
+                        return Err(GrpcError {
+                            request: concatcp!(StreamInit::PACKAGE, ".", StreamInit::NAME),
+                            status: tonic::Status::cancelled("stream closed"),
+                        });
                     }
                     break;
                 }
                 Err(status) => {
-                    return Err(status);
+                    return Err(GrpcError {
+                        request: concatcp!(Data::PACKAGE, ".", Data::NAME),
+                        status,
+                    });
                 }
             }
         }
@@ -218,7 +223,7 @@ pub async fn copy_to_containerd<R: AsyncRead>(
     sink: &mut ContainerdSink,
 ) -> Result<(), UploadError> {
     let mut chunk = 0;
-    let mut r = ReaderStream::with_capacity(r, 64);
+    let mut r = ReaderStream::with_capacity(r, CHUNK_SIZE);
     while let Some(result) = r.next().await {
         match result {
             Ok(data) => {

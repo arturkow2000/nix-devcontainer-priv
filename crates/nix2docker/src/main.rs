@@ -7,10 +7,8 @@ extern crate snafu;
 mod util;
 
 use std::{
-    borrow::Cow,
-    cmp::min,
-    collections::{BTreeMap, HashMap},
-    fmt::Debug,
+    collections::HashMap,
+    fmt::{self, Debug},
     io::{SeekFrom, stderr},
     path::PathBuf,
     pin::Pin,
@@ -18,40 +16,39 @@ use std::{
 
 use async_tar::{Archive, EntryType};
 use clap::Parser;
+use const_format::concatcp;
 use containerd_client::{
     services::v1::{
-        CreateRequest, DeleteRequest, StreamInit, TransferRequest, content_client::ContentClient,
+        CreateImageRequest, CreateRequest, DeleteRequest, Image, TransferRequest,
+        streaming_client::StreamingClient, transfer_client::TransferClient,
     },
     types::{
         Platform,
-        transfer::{Data, ImageImportStream, ImageReference, ImageStore, UnpackConfiguration},
+        transfer::{ImageImportStream, ImageStore, UnpackConfiguration},
     },
     with_namespace,
 };
 use futures_util::StreamExt;
-use oci_spec::image::{
-    Digest, ImageConfiguration, ImageIndex, ImageManifest, MediaType, OciLayout,
-};
+use oci_spec::image::{ImageIndex, OciLayout};
 use prost::{Message, Name};
 use prost_types::Any;
 use serde::de::DeserializeOwned;
+use sha2::Digest as _;
 use snafu::{IntoError as _, ResultExt};
 use tokio::{
     fs::File,
-    io::{self, AsyncRead, AsyncReadExt as _, AsyncSeek, AsyncSeekExt as _, ReadBuf},
+    io::{self, AsyncRead, AsyncReadExt as _, AsyncSeek, AsyncSeekExt as _},
     join,
-    sync::{mpsc, oneshot},
 };
-use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
-    Code, Request,
+    Extensions, Request,
     metadata::{MetadataMap, MetadataValue},
 };
 use tracing::field;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
-use crate::util::{ContainerdStreamingChannel, GrpcError, UploadError, copy_to_containerd};
+use crate::util::{GrpcError, UploadError};
 
 const DOCKER_NS: &str = "moby";
 
@@ -153,10 +150,6 @@ async fn run(opts: Options) -> Result<(), Error> {
     let mut leases = containerd.leases();
     let lease = {
         let mut labels = HashMap::new();
-        //labels.insert(
-        //    "containerd.io/gc.bref.image".to_string(),
-        //    image_name.to_string(),
-        //);
         labels.insert(
             "containerd.io/gc.expire".to_string(),
             chrono::Utc::now().to_rfc3339(),
@@ -213,8 +206,6 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
         size: u64,
     }
 
-    let mut content = containerd.content();
-
     let mut files = HashMap::new();
     let mut entries = tar.entries().context(ArchiveParseSnafu)?;
     while let Some(r) = entries.next().await {
@@ -238,11 +229,11 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
         );
     }
 
-    async fn json_deserialize_from_file<T: DeserializeOwned, R: AsyncRead + AsyncSeek + Unpin>(
+    async fn read_tar_file<R: AsyncRead + AsyncSeek + Unpin>(
         archive: &mut R,
         files: &HashMap<String, FileMeta>,
         path: &str,
-    ) -> Result<T, Error> {
+    ) -> Result<Vec<u8>, Error> {
         let entry = files.get(path).ok_or_else(|| {
             ArchiveFileReadSnafu { path }.into_error(io::ErrorKind::NotFound.into())
         })?;
@@ -256,6 +247,14 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
             .read_to_end(&mut data)
             .await
             .with_context(|_| ArchiveFileReadSnafu { path })?;
+        Ok(data)
+    }
+    async fn json_deserialize_from_file<T: DeserializeOwned, R: AsyncRead + AsyncSeek + Unpin>(
+        archive: &mut R,
+        files: &HashMap<String, FileMeta>,
+        path: &str,
+    ) -> Result<T, Error> {
+        let data = read_tar_file(archive, files, path).await?;
         serde_json::from_slice(&data[..]).with_context(|_| ArchiveFileDeserializeSnafu { path })
     }
 
@@ -267,352 +266,145 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
         }
     );
 
-    // Not required by OCI spec
-    let index: ImageIndex = json_deserialize_from_file(tar_raw, &files, "index.json").await?;
+    let index_raw = read_tar_file(tar_raw, &files, "index.json").await?;
+    let index_digest = {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&index_raw);
+        hasher.finalize()
+    };
+    fn hexstring(bytes: &[u8]) -> impl fmt::Display {
+        fmt::from_fn(move |f| {
+            for &b in bytes {
+                write!(f, "{b:02x}")?;
+            }
+            Ok(())
+        })
+    }
+
+    let index: ImageIndex = serde_json::from_slice(&index_raw)
+        .with_context(|_| ArchiveFileDeserializeSnafu { path: "index.json" })?;
     ensure!(
         index.schema_version() == 2,
         UnsupportedOciIndexSchemaVersionSnafu {
             version: index.schema_version()
         }
     );
-    for desc in index.manifests() {
-        if *desc.media_type() != MediaType::ImageManifest {
-            continue;
-        }
-        let digest = desc.digest();
-        let manifest_path = format!("blobs/{}/{}", digest.algorithm(), digest.digest());
-
-        let manifest: ImageManifest =
-            match json_deserialize_from_file(tar_raw, &files, &manifest_path).await {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    warn!(
-                        error = field::display(error),
-                        manifest_path, "can't read manifest, ignoring"
-                    );
-                    continue;
-                }
-            };
-        if manifest.schema_version() != 2 {
-            warn!(
-                manifest_path,
-                schema_version = manifest.schema_version(),
-                "unsupported manifest schema version, ignoring"
-            );
-            continue;
-        }
-        let config_desc = manifest.config();
-        if *config_desc.media_type() != MediaType::ImageConfig {
-            warn!(
-                "media-type" = field::display(config_desc.media_type()),
-                "unsupported media-type for config descriptor, ignoring"
-            );
-            continue;
-        }
-        let config_path = format!(
-            "blobs/{}/{}",
-            config_desc.digest().algorithm(),
-            config_desc.digest().digest()
-        );
-        let config: ImageConfiguration =
-            match json_deserialize_from_file(tar_raw, &files, &config_path).await {
-                Ok(config) => config,
-                Err(error) => {
-                    warn!(error = field::display(error), "can't read config, ignoring");
-                    continue;
-                }
-            };
-        let manifest_platform = format!("{}/{}", config.os(), config.architecture());
-        if manifest_platform != platform {
-            debug!("ignoring manifest with platform {manifest_platform}");
-            continue;
-        }
-        info!("{platform} config: {config:?}");
-
-        for layer in manifest.layers() {
-            let layer_path = format!(
-                "blobs/{}/{}",
-                layer.digest().algorithm(),
-                layer.digest().digest()
-            );
-            let meta = files.get(&layer_path).unwrap();
-
-            tar_raw
-                .seek(SeekFrom::Start(meta.offset))
-                .await
-                .map_err(|source| Error::UploadError {
-                    id: layer.digest().to_string(),
-                    source: UploadError::Io { source },
-                })?;
-            upload_layer(
-                &mut content,
-                Pin::new(tar_raw),
-                meta.size,
-                layer.digest(),
-                lease,
-            )
-            .await
-            .with_context(|_| UploadSnafu {
-                id: layer.digest().to_string(),
-            })?;
-        }
-    }
+    let mut streaming = containerd.streaming();
+    let mut transfer = containerd.transfer();
+    tar_raw.seek(SeekFrom::Start(0)).await.unwrap();
+    upload_archive(&mut streaming, &mut transfer, tar_raw, platform)
+        .await
+        .unwrap();
+    containerd
+        .images()
+        .create(with_namespace!(
+            CreateImageRequest {
+                image: Some(Image {
+                    name: "docker.io/library/devcontainer:latest".to_string(),
+                    labels: HashMap::new(),
+                    target: Some(containerd_client::types::Descriptor {
+                        media_type: index.media_type().as_ref().unwrap().to_string(),
+                        digest: format!("sha256:{}", hexstring(&index_digest)),
+                        size: index_raw.len() as _,
+                        annotations: index.annotations().clone().unwrap_or_default(),
+                    }),
+                    created_at: None,
+                    updated_at: None,
+                }),
+                source_date_epoch: None,
+            },
+            DOCKER_NS
+        ))
+        .await
+        .unwrap();
 
     Ok(())
 }
 
-async fn upload_layer<R: AsyncRead>(
-    content: &mut ContentClient<tonic::transport::Channel>,
-    blob: Pin<&mut R>,
-    blob_size: u64,
-    blob_digest: &Digest,
-    lease: &str,
-) -> Result<(), UploadError> {
-    upload_blob(content, blob, blob_size, blob_digest, lease).await
-}
-
-async fn upload_blob<R: AsyncRead>(
-    content: &mut ContentClient<tonic::transport::Channel>,
-    mut blob: Pin<&mut R>,
-    blob_size: u64,
-    blob_digest: &Digest,
-    lease: &str,
-) -> Result<(), UploadError> {
-    match util::upload_blob_to_containerd(
-        content,
-        &mut blob,
-        Uuid::new_v4().to_string(),
-        Some(blob_size),
-        Some(blob_digest),
-        {
-            let mut meta = MetadataMap::new();
-            meta.insert(
-                "containerd-namespace",
-                MetadataValue::from_static(DOCKER_NS),
-            );
-            meta.insert("containerd-lease", lease.parse().unwrap());
-            meta
-        },
-        HashMap::new(),
-    )
-    .await
-    {
-        Ok(()) => (),
-        Err(UploadError::Grpc {
-            source: GrpcError { status, .. },
-        }) if status.code() == Code::AlreadyExists => {}
-        Err(error) => {
-            return Err(error);
-        }
-    }
-
-    Ok(())
-}
-
-/*async fn upload_to_stream<R: AsyncRead>(
-    mut from: Pin<&mut R>,
-    to: &mut mpsc::Sender<Any>,
-    max_chunk_size: usize,
-) -> Result<(), UploadError> {
-    let mut chunk = 0;
-
-    info!("uploading file");
-    let mut eof = false;
-    while !eof {
-        debug!(i = chunk, "chunk");
-        let mut buf = Vec::with_capacity(max_chunk_size);
-        let mut rb = ReadBuf::uninit(buf.spare_capacity_mut());
-        let mut filled_old = rb.filled().len();
-
-        while rb.remaining() > 0 {
-            from.as_mut().read_buf(&mut rb).await?;
-            if filled_old == rb.filled().len() {
-                eof = true;
-            }
-            filled_old = rb.filled().len();
-            if eof {
-                break;
-            }
-        }
-        if filled_old == 0 {
-            break;
-        }
-
-        // Safety: data has been initialized
-        unsafe { buf.set_len(filled_old) };
-        if to
-            .send(Any {
-                type_url: Data::type_url(),
-                value: Data { data: buf }.encode_to_vec(),
-            })
-            .await
-            .is_err()
-        {
-            return Err(UploadError::StreamClosed);
-        }
-
-        chunk += 1;
-    }
-
-    Ok(())
-}*/
-
-/*async fn upload_archive<R: AsyncRead + Unpin>(
-    containerd: &containerd_client::Client,
+async fn upload_archive<R: AsyncRead + Unpin>(
+    streaming: &mut StreamingClient<tonic::transport::Channel>,
+    transfer: &mut TransferClient<tonic::transport::Channel>,
     archive: &mut R,
     platform: &str,
-) {
-    const CHUNK_SIZE: usize = 64;
-    let mut streaming = containerd.streaming();
+) -> Result<(), UploadError> {
+    let meta = {
+        let mut meta = MetadataMap::new();
+        meta.insert(
+            "containerd-namespace",
+            MetadataValue::from_static(DOCKER_NS),
+        );
+        meta
+    };
     let stream_id = Uuid::new_v4();
-    let (stream_init_tx, stream_init_done) = oneshot::channel();
-    let mut stream_init_tx = Some(stream_init_tx);
-    let (tx, rx) = mpsc::channel(1);
-    tx.send(Any {
-        type_url: StreamInit::full_name(),
-        value: StreamInit {
-            id: stream_id.to_string(),
-        }
-        .encode_to_vec(),
-    })
-    .await
-    .unwrap();
-
-    let file_upload_task = async move {
-        let mut chunk = 0;
-
-        info!("uploading file");
-        let mut eof = false;
-        while !eof {
-            debug!(i = chunk, "chunk");
-            let mut buf = Vec::with_capacity(CHUNK_SIZE);
-            let mut rb = ReadBuf::uninit(buf.spare_capacity_mut());
-            let mut filled_old = rb.filled().len();
-
-            while rb.remaining() > 0 {
-                archive.read_buf(&mut rb).await?;
-                if filled_old == rb.filled().len() {
-                    eof = true;
-                }
-                filled_old = rb.filled().len();
-                if eof {
-                    break;
-                }
-            }
-            if filled_old == 0 {
-                break;
-            }
-
-            // Safety: data has been initialized
-            unsafe { buf.set_len(filled_old) };
-            if tx
-                .send(Any {
-                    type_url: Data::type_url(),
-                    value: Data { data: buf }.encode_to_vec(),
-                })
-                .await
-                .is_err()
-            {
-                error!("channel closed");
-                return Result::<_, io::Error>::Ok(());
-            }
-
-            chunk += 1;
-        }
-
-        Result::<_, io::Error>::Ok(())
-    };
-    let stream_task = async {
-        let resp_stream = streaming
-            .stream({
-                let mut req = Request::new(ReceiverStream::new(rx));
-                let md = req.metadata_mut();
-                md.insert("containerd-namespace", DOCKER_NS.parse().unwrap());
-                req
-            })
+    let stream =
+        util::ContainerdStreamingChannel::new(streaming, stream_id.to_string(), meta.clone())
             .await
-            .unwrap();
-        let mut resp_stream = resp_stream.into_inner();
-        loop {
-            match resp_stream.message().await {
-                Ok(Some(resp)) => {
-                    if resp.type_url == "google.protobuf.Empty"
-                        && let Some(tx) = stream_init_tx.take()
-                    {
-                        // We need to wait for stream to initialize, during init a name is assigned
-                        // to the stream, we need to wait before issuing TransferRequest.
-                        debug!("stream initialized");
-                        let _ = tx.send(());
-                    }
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(status) => {
-                    error!("stream error: {status}");
-                }
-            }
-        }
+            .map_err(|source| UploadError::Grpc { source })?;
+    let mut sink = stream.new_sink();
+    let wait = stream.wait_init();
+    let copy_task = async move {
+        // use async move so sink gets dropped after copy
+        util::copy_to_containerd(Pin::new(archive), &mut sink).await
     };
-    let transfer_task = async {
-        stream_init_done.await.unwrap();
+    let transfer_task = async move {
+        wait.await?;
         let (os, arch) = platform.split_once("/").unwrap();
-        let mut req = Request::new(TransferRequest {
-            source: Some(Any {
-                type_url: ImageImportStream::full_name(),
-                value: ImageImportStream {
-                    stream: stream_id.to_string(),
-                    media_type: String::new(),
-                    force_compress: false,
-                }
-                .encode_to_vec(),
-            }),
-            destination: Some(Any {
-                type_url: ImageStore::full_name(),
-                value: ImageStore {
-                    name: String::new(),
-                    labels: HashMap::new(),
-                    platforms: vec![Platform {
-                        os: os.to_string(),
-                        architecture: arch.to_string(),
-                        variant: String::new(),
-                        os_version: String::new(),
-                    }],
-                    all_metadata: false,
-                    manifest_limit: 0,
-                    extra_references: vec![ImageReference {
-                        name: "dd".to_string(),
-                        is_prefix: false,
-                        allow_overwrite: false,
-                        add_digest: false,
-                        skip_named_digest: false,
-                    }],
-                    unpacks: vec![UnpackConfiguration {
-                        platform: Some(Platform {
+        let req = Request::from_parts(
+            meta,
+            Extensions::new(),
+            TransferRequest {
+                source: Some(Any {
+                    type_url: ImageImportStream::full_name(),
+                    value: ImageImportStream {
+                        stream: stream_id.to_string(),
+                        media_type: String::new(),
+                        force_compress: false,
+                    }
+                    .encode_to_vec(),
+                }),
+                destination: Some(Any {
+                    type_url: ImageStore::full_name(),
+                    value: ImageStore {
+                        name: String::new(),
+                        labels: HashMap::new(),
+                        platforms: vec![Platform {
                             os: os.to_string(),
                             architecture: arch.to_string(),
                             variant: String::new(),
                             os_version: String::new(),
-                        }),
-                        snapshotter: "nix".to_string(),
-                    }],
-                }
-                .encode_to_vec(),
-            }),
-            options: None,
-        });
-        let md = req.metadata_mut();
-        md.insert("containerd-namespace", DOCKER_NS.parse().unwrap());
+                        }],
+                        all_metadata: false,
+                        manifest_limit: 0,
+                        extra_references: vec![],
+                        unpacks: vec![UnpackConfiguration {
+                            platform: Some(Platform {
+                                os: os.to_string(),
+                                architecture: arch.to_string(),
+                                variant: String::new(),
+                                os_version: String::new(),
+                            }),
+                            snapshotter: "nix".to_string(),
+                        }],
+                    }
+                    .encode_to_vec(),
+                }),
+                options: None,
+            },
+        );
+        transfer.transfer(req).await.map_err(|status| GrpcError {
+            request: concatcp!(TransferRequest::PACKAGE, ".", TransferRequest::NAME),
+            status,
+        })?;
 
-        let resp = containerd.transfer().transfer(req).await.unwrap();
-        info!("resp: {resp:?}")
-        //let req = with_namespace!();
+        Result::<_, GrpcError>::Ok(())
     };
-    let (x, y, z) = join!(file_upload_task, stream_task, transfer_task);
-    x.unwrap();
+    let (x, y, z) = join!(copy_task, transfer_task, stream.process());
+    x?;
+    y?;
+    z?;
 
-    //let import_src = ImageImportStream {stream:}
-}*/
+    Ok(())
+}
 
 /*use async_tar::{Archive, EntryType};
 use clap::Parser;
