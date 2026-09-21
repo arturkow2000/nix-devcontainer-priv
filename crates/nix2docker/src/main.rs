@@ -7,6 +7,7 @@ extern crate snafu;
 mod util;
 
 use std::{
+    borrow::Cow,
     cmp::min,
     collections::{BTreeMap, HashMap},
     fmt::Debug,
@@ -18,7 +19,9 @@ use std::{
 use async_tar::{Archive, EntryType};
 use clap::Parser;
 use containerd_client::{
-    services::v1::{CreateRequest, DeleteRequest, StreamInit, TransferRequest},
+    services::v1::{
+        CreateRequest, DeleteRequest, StreamInit, TransferRequest, content_client::ContentClient,
+    },
     types::{
         Platform,
         transfer::{Data, ImageImportStream, ImageReference, ImageStore, UnpackConfiguration},
@@ -26,7 +29,9 @@ use containerd_client::{
     with_namespace,
 };
 use futures_util::StreamExt;
-use oci_spec::image::{ImageConfiguration, ImageIndex, ImageManifest, MediaType, OciLayout};
+use oci_spec::image::{
+    Digest, ImageConfiguration, ImageIndex, ImageManifest, MediaType, OciLayout,
+};
 use prost::{Message, Name};
 use prost_types::Any;
 use serde::de::DeserializeOwned;
@@ -38,7 +43,10 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::Request;
+use tonic::{
+    Code, Request,
+    metadata::{MetadataMap, MetadataValue},
+};
 use tracing::field;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
@@ -205,6 +213,8 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
         size: u64,
     }
 
+    let mut content = containerd.content();
+
     let mut files = HashMap::new();
     let mut entries = tar.entries().context(ArchiveParseSnafu)?;
     while let Some(r) = entries.next().await {
@@ -335,9 +345,10 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
                     source: UploadError::Io { source },
                 })?;
             upload_layer(
-                &containerd,
-                Pin::new(&mut tar_raw.take(meta.size)),
-                platform,
+                &mut content,
+                Pin::new(tar_raw),
+                meta.size,
+                layer.digest(),
                 lease,
             )
             .await
@@ -351,52 +362,51 @@ async fn upload_tar<R: AsyncRead + AsyncSeek + Unpin>(
 }
 
 async fn upload_layer<R: AsyncRead>(
-    containerd: &containerd_client::Client,
-    layer: Pin<&mut R>,
-    platform: &str,
+    content: &mut ContentClient<tonic::transport::Channel>,
+    blob: Pin<&mut R>,
+    blob_size: u64,
+    blob_digest: &Digest,
     lease: &str,
 ) -> Result<(), UploadError> {
-    let mut streaming = containerd.streaming();
-    let stream_id = Uuid::new_v4();
+    upload_blob(content, blob, blob_size, blob_digest, lease).await
+}
 
-    let mut ch = ContainerdStreamingChannel::new(&mut streaming, stream_id.to_string(), {
-        let mut meta = BTreeMap::new();
-        meta.insert("containerd-namespace", DOCKER_NS.to_string());
-        meta.insert("containerd-lease", lease.to_string());
-        meta
-    })
+async fn upload_blob<R: AsyncRead>(
+    content: &mut ContentClient<tonic::transport::Channel>,
+    mut blob: Pin<&mut R>,
+    blob_size: u64,
+    blob_digest: &Digest,
+    lease: &str,
+) -> Result<(), UploadError> {
+    match util::upload_blob_to_containerd(
+        content,
+        &mut blob,
+        Uuid::new_v4().to_string(),
+        Some(blob_size),
+        Some(blob_digest),
+        {
+            let mut meta = MetadataMap::new();
+            meta.insert(
+                "containerd-namespace",
+                MetadataValue::from_static(DOCKER_NS),
+            );
+            meta.insert("containerd-lease", lease.parse().unwrap());
+            meta
+        },
+        HashMap::new(),
+    )
     .await
-    .unwrap();
-    let stream_wait = ch.wait_init();
-    let mut sink = ch.new_sink();
-    let copy_task = copy_to_containerd(layer, &mut sink);
-
-    let transfer_task = async move {
-        error!("wait!");
-        stream_wait.await?;
-
-        Result::<_, tonic::Status>::Ok(())
-    };
-
-    info!("waiting for stream");
-    let (x, y, z) = join!(ch.process(), transfer_task, copy_task);
-
-    info!("FDFDF");
+    {
+        Ok(()) => (),
+        Err(UploadError::Grpc {
+            source: GrpcError { status, .. },
+        }) if status.code() == Code::AlreadyExists => {}
+        Err(error) => {
+            return Err(error);
+        }
+    }
 
     Ok(())
-
-    //let (stream_init_tx, stream_init_done) = oneshot::channel();
-    //let mut stream_init_tx = Some(stream_init_tx);
-    //let (tx, rx) = mpsc::channel(1);
-    //tx.send(Any {
-    //    type_url: StreamInit::full_name(),
-    //    value: StreamInit {
-    //        id: stream_id.to_string(),
-    //    }
-    //    .encode_to_vec(),
-    //})
-    //.await
-    //.unwrap();
 }
 
 /*async fn upload_to_stream<R: AsyncRead>(

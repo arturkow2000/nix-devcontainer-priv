@@ -1,24 +1,39 @@
 use std::{
-    collections::BTreeMap,
-    pin::Pin,
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    pin::{Pin, pin},
     task::{Context, Poll, ready},
 };
 
 use const_format::concatcp;
 use containerd_client::{
-    services::v1::{StreamInit, streaming_client::StreamingClient},
+    services::v1::{
+        StreamInit, WriteAction, WriteContentRequest, content_client::ContentClient,
+        streaming_client::StreamingClient,
+    },
     types::transfer::Data,
 };
 use futures_util::{Sink, SinkExt as _, StreamExt};
+use oci_spec::image::Digest;
 use prost::{Message, Name};
 use prost_types::Any;
 use tokio::{
-    io::{self, AsyncRead},
+    io::{self, AsyncRead, AsyncReadExt},
+    join,
     sync::{mpsc, watch},
 };
-use tokio_stream::wrappers::{ReceiverStream, WatchStream};
+use tokio_stream::{
+    Stream,
+    wrappers::{ReceiverStream, WatchStream},
+};
 use tokio_util::{io::ReaderStream, sync::PollSender};
-use tonic::{Request, Streaming};
+use tonic::{
+    Extensions, Request, Streaming,
+    metadata::{MetadataMap, MetadataValue},
+};
+use tracing::field;
+
+const CHUNK_SIZE: usize = 64;
 
 #[derive(Debug, Snafu)]
 pub enum UploadError {
@@ -228,6 +243,132 @@ pub async fn copy_to_containerd<R: AsyncRead>(
             Err(source) => return Err(UploadError::Io { source }),
         }
     }
+
+    Ok(())
+}
+
+/// Upload blob to containerd image store.
+pub async fn upload_blob_to_containerd<R: AsyncRead + Unpin>(
+    content_client: &mut ContentClient<tonic::transport::Channel>,
+    reader: &mut R,
+    r#ref: String,
+    size: Option<u64>,
+    digest: Option<&Digest>,
+    meta: MetadataMap,
+    labels: HashMap<String, String>,
+) -> Result<(), UploadError> {
+    let span = info_span!("uploading blob", digest = field::Empty, size = field::Empty);
+    if let Some(digest) = digest {
+        span.record("digest", digest.to_string());
+    }
+    if let Some(size) = size {
+        span.record("size", size);
+    }
+
+    //let mut reader = ReaderStream::with_capacity(reader, CHUNK_SIZE);
+    let mut unlimited_reader = None;
+    let mut limited_reader = None;
+    let mut reader: Pin<&mut dyn Stream<Item = _>> = if let Some(size) = size {
+        pin!(limited_reader.insert(ReaderStream::with_capacity(reader.take(size), CHUNK_SIZE)))
+    } else {
+        pin!(unlimited_reader.insert(ReaderStream::with_capacity(reader, CHUNK_SIZE)))
+    };
+
+    let (tx, rx) = mpsc::channel::<WriteContentRequest>(1);
+    let req = Request::from_parts(meta, Extensions::new(), ReceiverStream::new(rx));
+
+    // Won't hang (buffer has space for 1 element) and won't panic (we still hold rx half).
+    tx.send(WriteContentRequest {
+        action: 0,
+        r#ref,
+        total: size.map_or(0, |x| x.try_into().unwrap()),
+        expected: digest.map_or_default(|x| x.to_string()),
+        offset: 0,
+        data: vec![],
+        labels,
+    })
+    .await
+    .unwrap();
+
+    let upload_task = async move {
+        let stream_closed = || UploadError::Grpc {
+            source: GrpcError {
+                request: concatcp!(WriteContentRequest::PACKAGE, ".", WriteContentRequest::NAME),
+                status: tonic::Status::cancelled("stream closed"),
+            },
+        };
+        let mut offset = 0;
+        while let Some(result) = reader.next().await {
+            match result {
+                Ok(data) => {
+                    let n = data.len();
+                    tx.send(WriteContentRequest {
+                        action: WriteAction::Write as _,
+                        r#ref: String::new(),
+                        total: 0,
+                        expected: String::new(),
+                        offset: offset as i64,
+                        data: data.to_vec(),
+                        labels: HashMap::new(),
+                    })
+                    .await
+                    .map_err(|_| stream_closed())?;
+                    offset += n;
+                }
+                Err(source) => return Err(UploadError::Io { source: source }),
+            }
+        }
+
+        tx.send(WriteContentRequest {
+            action: WriteAction::Commit as _,
+            r#ref: String::new(),
+            total: 0,
+            expected: String::new(),
+            offset: offset as i64,
+            data: vec![],
+            labels: HashMap::new(),
+        })
+        .await
+        .map_err(|_| stream_closed())?;
+
+        Ok(())
+    };
+
+    let mut resp_stream = content_client
+        .write(req)
+        .await
+        .map_err(|status| UploadError::Grpc {
+            source: GrpcError {
+                request: concatcp!(WriteContentRequest::PACKAGE, ".", WriteContentRequest::NAME),
+                status,
+            },
+        })?
+        .into_inner();
+    let process_resp_stream_task = async move {
+        loop {
+            match resp_stream.message().await {
+                Ok(Some(v)) => {
+                    error!("todo: {v:?}")
+                }
+                Ok(None) => return Ok(()),
+                Err(status) => {
+                    return Err(UploadError::Grpc {
+                        source: GrpcError {
+                            request: concatcp!(
+                                WriteContentRequest::PACKAGE,
+                                ".",
+                                WriteContentRequest::NAME
+                            ),
+                            status,
+                        },
+                    });
+                }
+            }
+        }
+    };
+    let (x, y) = join!(upload_task, process_resp_stream_task);
+    x?;
+    y?;
 
     Ok(())
 }
